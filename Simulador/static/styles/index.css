@@ -1,0 +1,76 @@
+body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fff;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+
+/* Contenedor central */
+.container {
+    text-align: center;
+    position: relative;
+    left: 12rem;
+    z-index: 2;
+}
+
+.container h1 {
+    font-size: 7rem;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+.welcome {
+    background: black;
+    color: white;
+    display: inline-block;
+    padding: 5px 15px;
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+
+button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 2rem;
+    border: none;
+    background: #ddd;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #bbb;
+}
+
+/* Círculos decorativos */
+.circle {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.9;
+    z-index: 1;
+}
+
+.c1 { width: 120px; height: 120px; background: #a187ff; top: 20px; left: 40px; }
+.c2 { width: 80px; height: 80px; background: #f7c546; top: 60px; left: 200px; }
+.c3 { width: 100px; height: 100px; background: #d81b60; top: 100px; right: 150px; }
+.c4 { width: 60px; height: 60px; background: #4dd0e1; top: 200px; right: 60px; }
+.c5 { width: 140px; height: 140px; background: #5e35b1; bottom: 60px; right: 80px; }
+.c6 { width: 90px; height: 90px; background: #ffee58; bottom: 100px; left: 100px; }
+.c7 { width: 40px; height: 40px; background: #f48fb1; bottom: 40px; left: 250px; }
+.c8 { width: 50px; height: 50px; background: #9575cd; top: 150px; right: 300px; }
+
+ /* Imagen del personaje */
+.character {
+    position: absolute;
+    bottom: 0;
+    left: 5%;
+    height: 42rem;
+    width: auto;
+    z-index: 2;
+}

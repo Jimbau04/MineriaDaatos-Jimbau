@@ -1,0 +1,2 @@
+# MineriaDaatos
+Proyecto de mineria 
