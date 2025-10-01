@@ -97,84 +97,139 @@
         <div class="distribution-content" id="multinomial">
           
           <div class="tabs">
-            <button class="tab-button active" onclick="cambiarTab('simulacion')">Simulación</button>
-            <button class="tab-button" onclick="cambiarTab('probabilidad')">Multinomial</button>
+            <button class="tab-button active" onclick="cambiarTab('simulacion')">Simulación Basica</button>
+            <button class="tab-button" onclick="cambiarTab('probabilidad')">Distribucion Multinomial</button>
           </div>
           
           <div id="simulacion" class="tab-content active">
-            <h2>Simulación Multinomial</h2>
-            <div class="inputs-section">
-                <div class="input-group">
-                    <label>Número de experimentos:</label>
-                    <input type="number" id="n_experimentos" value="20" min="1" required>
-                </div>
-
-                <div class="input-group">
-                    <label>Categorías (separadas por comas):</label>
-                    <input type="text" id="categorias" value="A,B,C" required>
-                </div>
-
-                <div class="input-group">
-                    <label>Probabilidades (separadas por comas):</label>
-                    <input type="text" id="prob_sim_mult" value="0.3,0.5,0.2" required>
-                    <small>Deben sumar 1.0</small>
-                </div>
-
-                <button type="submit" class="btn-primary">Simular</button>
-            </div>
-
-            <div id="resultado-simulacion" class="resultado" style="display: none;">
-                <h3>Resultados de la Simulación</h3>
-                <pre id="resultado_texto"></pre>
-            </div>
-        </div>
-
-        <!-- Tab de Probabilidad Exacta -->
-        <div id="probabilidad" class="tab-content">
-            <h2>Cálculo de Probabilidad Exacta</h2>
-            <div class="inputs-section">
-                <div class="input-group">
-                    <label>Número de experimentos:</label>
-                    <input type="number" id="n_experimentos_prob" value="10" min="1" required>
-                </div>
-
-                <div class="input-group">
-                    <label>Categorías (separadas por comas):</label>
-                    <input type="text" id="categorias_prob" value="A,B,C" required>
-                </div>
-
-                <div class="input-group">
-                    <label>Probabilidades (separadas por comas):</label>
-                    <input type="text" id="probabilidades_prob" value="0.3,0.5,0.2" required>
-                    <small>Deben sumar 1.0</small>
-                </div>
-
-                <div class="input-group">
-                    <label>Frecuencias deseadas (separadas por comas):</label>
-                    <input type="text" id="frecuencias_deseadas" value="3,5,2" required>
-                    <small>Deben sumar el número total de experimentos</small>
-                </div>
-
-                <div>
-                    <button type="submit" id="btn-proba" class="btn-proba">Simular</button>
-                    <button type="submit" id="btn-verif" class="btn-verif">Verificar</button>
-                </div>
-            </div>
-
-            <div id="resultado-probabilidad" class="resultado" style="display: none;">
-                <h3>Cálculo Detallado</h3>
-                <div id="calculo-detallado"></div>
+            <div class="main-grid">
+              <div class="inputs-section">
+                <div class="panel-title">Parámetros de Simulación</div>
                 
-                <h3>Interpretación</h3>
-                <div id="interpretacion"></div>
-            </div>
+                <div class="section">
+                  <div class="input-group">
+                    <label>Número de Experimentos</label>
+                    <input type="number" id="n_experimentos" value="5000" min="1">
+                  </div>
+                </div>
 
-            <div id="resultado-verificacion" class="resultado" style="display: none;">
-                <h3>Verificación por Simulación</h3>
-                <div id="verificacion-detalle"></div>
-            </div>
+                <div class="section">
+                  <div class="section-header">Categorías y Probabilidades</div>
+                  <div id="categories-container">
+                    <div class="category-item" data-index="0">
+                      <div class="category-header">
+                        <span class="category-name">🔴 Rojo</span>
+                        <button class="remove-btn" onclick="removeCategory(0)">✕</button>
+                      </div>
+                      <div class="input-row">
+                        <div class="input-wrapper">
+                          <label>Nombre</label>
+                          <input type="text" class="cat-name" value="Rojo">
+                        </div>
+                        <div class="input-wrapper">
+                          <label>Probabilidad</label>
+                          <input type="number" class="cat-prob" value="0.5" min="0" max="1" step="0.01">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="category-item" data-index="1">
+                      <div class="category-header">
+                        <span class="category-name">🟢 Verde</span>
+                        <button class="remove-btn" onclick="removeCategory(1)">✕</button>
+                      </div>
+                      <div class="input-row">
+                        <div class="input-wrapper">
+                          <label>Nombre</label>
+                          <input type="text" class="cat-name" value="Verde">
+                        </div>
+                        <div class="input-wrapper">
+                          <label>Probabilidad</label>
+                          <input type="number" class="cat-prob" value="0.3" min="0" max="1" step="0.01">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="category-item" data-index="2">
+                      <div class="category-header">
+                        <span class="category-name">🔵 Azul</span>
+                        <button class="remove-btn" onclick="removeCategory(2)">✕</button>
+                      </div>
+                      <div class="input-row">
+                        <div class="input-wrapper">
+                          <label>Nombre</label>
+                          <input type="text" class="cat-name" value="Azul">
+                        </div>
+                        <div class="input-wrapper">
+                          <label>Probabilidad</label>
+                          <input type="number" class="cat-prob" value="0.2" min="0" max="1" step="0.01">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="prob-sum-warning" class="prob-warning" style="display:none"></div>
+                  <button class="add-category-btn" onclick="addCategory()">+ Añadir Categoría</button>
+                </div>
 
-            
+                <button class="simulate-btn" onclick="simularMultinomial()">
+                  🚀 Ejecutar Simulación
+                </button>
+              </div>
+
+              <div class="panel results-panel">
+                <div class="panel-title">📈 Resultados</div>
+                <div id="resultados-sim" class="placeholder">
+                  Configure los parámetros y presione "Ejecutar Simulación"
+                </div>
+              </div>
+            </div>
+          </div>  
+
+        <!-- TAB PROBABILIDAD -->
+    <div id="probabilidad" class="tab-content">
+      <div class="main-grid">
+        <div class="panel">
+          <div class="panel-title">Configuración del Cálculo</div>
+          
+          <div class="section">
+            <div class="input-wrapper">
+              <label>Número Total de Experimentos (n)</label>
+              <input type="number" id="n_exp_prob" value="10" min="1">
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">Configuración de Categorías</div>
+            <div id="categories-prob-container">
+              <div class="category-item" data-index="0">
+                <div class="category-header">
+                  <span class="category-name">Categoría 1</span>
+                  <button class="remove-btn" onclick="removeCategoryProb(0)">✕</button>
+                </div>
+                <div class="input-row">
+                  <div class="input-wrapper">
+                    <label>Nombre</label>
+                    <input type="text" class="cat-name-prob" value="A">
+                  </div>
+                  <div class="input-wrapper">
+                    <label>Probabilidad (p)</label>
+                    <input type="number" class="cat-prob-prob" value="0.3" min="0" max="1" step="0.01">
+                  </div>
+                  <div class="input-wrapper">
+                    <label>Frecuencia Deseada (k)</label>
+                    <input type="number" class="cat-freq-prob" value="3" min="0">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="prob-sum-warning-2" class="prob-warning" style="display:none"></div>
+            <button class="add-category-btn" onclick="addCategoryProb()">+ Añadir Categoría</button>
+          </div>
+
+          <button class="simulate-btn" onclick="calcularProbabilidad()">
+            🧮 Calcular Probabilidad
+          </button>
+          <button class="simulate-btn" style="background: linear-gradient(135deg, #27ae60, #229954); margin-top: 0.5rem;" onclick="verificarSimulacion()">
+            ✓ Verificar con Simulación
+          </button>
         </div>
 
 

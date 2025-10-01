@@ -161,6 +161,16 @@
         }
 
 
+      .section-header {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      color: #333;
+      border-left: 4px solid #667eea;
+    }
+
 
 
     /* Panel de resultados */
