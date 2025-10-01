@@ -118,15 +118,15 @@
                   <div id="categories-container">
                     <div class="category-item" data-index="0">
                       <div class="category-header">
-                        <span class="category-name">🔴 Rojo</span>
+                        <span class="category-name">🔴 Categoria 1</span>
                         <button class="remove-btn" onclick="removeCategory(0)">✕</button>
                       </div>
                       <div class="input-row">
-                        <div class="input-wrapper">
+                        <div class="input-group">
                           <label>Nombre</label>
                           <input type="text" class="cat-name" value="Rojo">
                         </div>
-                        <div class="input-wrapper">
+                        <div class="input-group">
                           <label>Probabilidad</label>
                           <input type="number" class="cat-prob" value="0.5" min="0" max="1" step="0.01">
                         </div>
@@ -134,15 +134,15 @@
                     </div>
                     <div class="category-item" data-index="1">
                       <div class="category-header">
-                        <span class="category-name">🟢 Verde</span>
+                        <span class="category-name">🟢 Categoria 2</span>
                         <button class="remove-btn" onclick="removeCategory(1)">✕</button>
                       </div>
                       <div class="input-row">
-                        <div class="input-wrapper">
+                        <div class="input-group">
                           <label>Nombre</label>
                           <input type="text" class="cat-name" value="Verde">
                         </div>
-                        <div class="input-wrapper">
+                        <div class="input-group">
                           <label>Probabilidad</label>
                           <input type="number" class="cat-prob" value="0.3" min="0" max="1" step="0.01">
                         </div>
@@ -150,15 +150,15 @@
                     </div>
                     <div class="category-item" data-index="2">
                       <div class="category-header">
-                        <span class="category-name">🔵 Azul</span>
+                        <span class="category-name">🔵 Categoria 3</span>
                         <button class="remove-btn" onclick="removeCategory(2)">✕</button>
                       </div>
                       <div class="input-row">
-                        <div class="input-wrapper">
+                        <div class="input-group">
                           <label>Nombre</label>
                           <input type="text" class="cat-name" value="Azul">
                         </div>
-                        <div class="input-wrapper">
+                        <div class="input-group">
                           <label>Probabilidad</label>
                           <input type="number" class="cat-prob" value="0.2" min="0" max="1" step="0.01">
                         </div>
@@ -176,9 +176,10 @@
 
               <div class="panel results-panel">
                 <div class="panel-title">📈 Resultados</div>
-                <div id="resultados-sim" class="placeholder">
+                <div id="placeholder-sim" class="placeholder">
                   Configure los parámetros y presione "Ejecutar Simulación"
                 </div>
+                <div id="resultados-sim" class="hidden"></div>
               </div>
             </div>
           </div>  
@@ -186,11 +187,11 @@
         <!-- TAB PROBABILIDAD -->
     <div id="probabilidad" class="tab-content">
       <div class="main-grid">
-        <div class="panel">
+        <div class="inputs-section">
           <div class="panel-title">Configuración del Cálculo</div>
           
           <div class="section">
-            <div class="input-wrapper">
+            <div class="input-group">
               <label>Número Total de Experimentos (n)</label>
               <input type="number" id="n_exp_prob" value="10" min="1">
             </div>
@@ -205,15 +206,15 @@
                   <button class="remove-btn" onclick="removeCategoryProb(0)">✕</button>
                 </div>
                 <div class="input-row">
-                  <div class="input-wrapper">
+                  <div class="input-group">
                     <label>Nombre</label>
                     <input type="text" class="cat-name-prob" value="A">
                   </div>
-                  <div class="input-wrapper">
+                  <div class="input-group">
                     <label>Probabilidad (p)</label>
                     <input type="number" class="cat-prob-prob" value="0.3" min="0" max="1" step="0.01">
                   </div>
-                  <div class="input-wrapper">
+                  <div class="input-group">
                     <label>Frecuencia Deseada (k)</label>
                     <input type="number" class="cat-freq-prob" value="3" min="0">
                   </div>
@@ -233,6 +234,8 @@
         </div>
 
 
+        </div>
+        </div>
         </div>
 
         <!-- Contenido para Exponencial -->

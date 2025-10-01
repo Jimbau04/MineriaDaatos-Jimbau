@@ -32,6 +32,35 @@
             
         }
 
+        function addCategory() {
+      const container = document.getElementById('categories-container');
+      const colors = ['🟡', '🟣', '🟤', '⚪', '⚫', '🟠'];
+      const emoji = colors[categoryIndex % colors.length];
+      
+      const item = document.createElement('div');
+      item.className = 'category-item';
+      item.setAttribute('data-index', categoryIndex);
+      item.innerHTML = `
+        <div class="category-header">
+          <span class="category-name">${emoji} Categoría ${categoryIndex + 1}</span>
+          <button class="remove-btn" onclick="removeCategory(${categoryIndex})">✕</button>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Nombre</label>
+            <input type="text" class="cat-name" value="Cat${categoryIndex + 1}">
+          </div>
+          <div class="input-group">
+            <label>Probabilidad</label>
+            <input type="number" class="cat-prob" value="0.1" min="0" max="1" step="0.01">
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+      categoryIndex++;
+      checkProbSum();
+    }
+
     function getConcordanciaColor(concordancia) {
             switch(concordancia) {
                 case 'excelente': return '#27ae60';
@@ -272,248 +301,460 @@
     }
 
     // Configuración para Multinomial 
-    function Multinomial() {
-      const multinomialContent = document.getElementById('multinomial');
-      const simulateBtn = multinomialContent.querySelector('.btn-primary');
-      let ultimoResultado = null;
-      
-      if (simulateBtn && simulateBtn.textContent === 'Simular') {
-        simulateBtn.addEventListener('click', async () => {
-          const n_experimentos = parseInt(document.getElementById("n_experimentos").value);
-          const categorias = document.getElementById("categorias").value.split(",").map(c => c.trim());
-          const probabilidades = document.getElementById("prob_sim_mult").value.split(",").map(Number);
+    
+    let categoryIndex = 3;
+    let categoryProbIndex = 3;
 
-          if (categorias.length !== probabilidades.length) {
-              alert("El número de categorías debe coincidir con el número de probabilidades");
-              return;
-          }
+    
+    
 
-          const suma = probabilidades.reduce((a, b) => a + b, 0);
-          if (Math.abs(suma - 1.0) > 0.01) {
-              alert(`Las probabilidades deben sumar 1.0 (suma actual: ${suma.toFixed(4)})`);
-              return;
-          }
-
-          const payload = { n_experimentos, categorias, probabilidades };
-          console.log("Payload:", payload);
-
-          try {
-              const res = await fetch("/multinomial", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload)
-              });
-              console.log("Response status:", res.status);
-              const data = await res.json();
-              
-              if (data.error) {
-                  alert("Error: " + data.error);
-                  return;
-              }
-
-              console.log("Data received:", data);
-
-              // document.getElementById("resultado_texto").textContent = JSON.stringify(data, null, 2);
-              document.getElementById("resultado-simulacion").style.display = 'block';
-
-             // Limpiar área de la gráfica
-              grafica.innerHTML = "";
-
-              // Barras para frecuencias observadas
-              const obsTrace = {
-                  x: data.categorias,
-                  y: data.frecuencias_observadas,
-                  type: "bar",
-                  name: "Frecuencia observada",
-                  marker: { color: "#6c5ce7" }
-              };
-
-              // Barras para frecuencias esperadas
-              const expTrace = {
-                  x: data.categorias,
-                  y: data.frecuencias_esperadas,
-                  type: "bar",
-                  name: "Frecuencia esperada",
-                  marker: { color: "#837ea5ff" }
-              };
-
-              // Configuración del layout
-              const layout = {
-                  title: { text: "Distribución Multinomial (Observada vs Esperada)" },
-                  xaxis: { title: "Categorías" },
-                  yaxis: { title: "Frecuencia" },
-                  barmode: "group" // 🔹 Ahora las barras estarán una al lado de la otra
-              };
-
-              // Renderizar con Plotly
-              Plotly.newPlot("chart", [obsTrace, expTrace], layout, { responsive: true });
-
-              // Mostrar resultados en texto
-              resultados.innerHTML = `
-                  <h3>Resultados</h3>
-                  <p><b>Total de experimentos:</b> ${data.n_experimentos}</p>
-                  <p><b>Categorías:</b> ${data.categorias.join(", ")}</p>
-                  <p><b>Frecuencias observadas:</b> ${data.frecuencias_observadas.join(", ")}</p>
-                  <p><b>Frecuencias esperadas:</b> ${data.frecuencias_esperadas.join(", ")}</p>
-              `;
-                } catch (error) {
-                    console.error("Error:", error);
-                    alert("Error al conectar con la API: " + error.message);
-                }
-            
-          });
+    function removeCategory(index) {
+      const items = document.querySelectorAll('#categories-container .category-item');
+      if (items.length <= 2) {
+        alert('Debe haber al menos 2 categorías');
+        return;
       }
-
-
-      // probabilidad exacta
-      const probaContent = document.getElementById('probabilidad');
-      const probaBtn = probaContent.querySelector('.btn-proba');
-
-      if (probaBtn && probaBtn.textContent === 'Simular') {
-        probaBtn.addEventListener('click', async () => {
-            const n_experimentos = parseInt(document.getElementById("n_experimentos_prob").value);
-            const categorias = document.getElementById("categorias_prob").value.split(",").map(c => c.trim());
-            const probabilidades = document.getElementById("probabilidades_prob").value.split(",").map(Number);
-            const frecuencias_deseadas = document.getElementById("frecuencias_deseadas").value.split(",").map(Number);
-
-            // Validaciones
-            if (categorias.length !== probabilidades.length || probabilidades.length !== frecuencias_deseadas.length) {
-                alert("Todas las listas deben tener la misma longitud");
-                return;
-            }
-
-            const sumaProb = probabilidades.reduce((a, b) => a + b, 0);
-            if (Math.abs(sumaProb - 1.0) > 0.01) {
-                alert(`Las probabilidades deben sumar 1.0 (suma actual: ${sumaProb.toFixed(4)})`);
-                return;
-            }
-
-            const sumaFreq = frecuencias_deseadas.reduce((a, b) => a + b, 0);
-            if (sumaFreq !== n_experimentos) {
-                alert(`Las frecuencias deben sumar ${n_experimentos} (suma actual: ${sumaFreq})`);
-                return;
-            }
-
-            const payload = { n_experimentos, categorias, probabilidades, frecuencias_deseadas };
-
-            try {
-                const res = await fetch("/calcular-probabilidad", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await res.json();
-                console.log("Data PROBABILIDAD received:", data);
-                if (data.error) {
-                    alert("Error: " + data.error);
-                    return;
-                }
-
-                
-                ultimoResultado = payload; // Guardar el último payload enviado
-
-
-                grafica.innerHTML = "";
-
-                // Barras para frecuencias deseadas
-                const deseadasTrace = {
-                    x: data.categorias,
-                    y: data.frecuencias_deseadas,
-                    type: "bar",
-                    name: "Frecuencia deseada",
-                    marker: { color: "#6c5ce7" },
-                    opacity: 0.6
-                };
-
-                // Barras para frecuencias esperadas (calculadas)
-                const esperadasTrace = {
-                    x: data.categorias,
-                    y: data.frecuencias_esperadas,
-                    type: "bar",
-                    name: "Frecuencia esperada",
-                    marker: { color: "#837ea5ff" },
-                    opacity: 0.7
-                };
-
-                const layout = {
-                    title: { text: "Distribución Multinomial (Deseada vs Esperada)" },
-                    xaxis: { title: "Categorías" },
-                    yaxis: { title: "Frecuencia" },
-                    barmode: "group"
-                };
-
-                Plotly.newPlot("chart", [deseadasTrace, esperadasTrace], layout, { responsive: true });
-
-
-                // ----------------- RESULTADOS -----------------
-                resultados.innerHTML = `
-                    <h3>Resultados de la probabilidad exacta</h3>
-                    <p><b>Total de experimentos:</b> ${data.n_experimentos}</p>
-                    <p><b>Categorías:</b> ${data.categorias.join(", ")}</p>
-                    <p><b>Probabilidades:</b> ${data.probabilidades.join(", ")}</p>
-                    <p><b>Frecuencias deseadas:</b> ${data.frecuencias_deseadas.join(", ")}</p>
-                    <p><b>Frecuencias esperadas:</b> ${data.frecuencias_esperadas.join(", ")}</p>
-                    <p><b>Coeficiente multinomial:</b> ${data.coeficiente_multinomial}</p>
-                    <p><b>Producto de probabilidades:</b> ${data.producto_probabilidades.toExponential(6)}</p>
-                    <p><b>Probabilidad exacta:</b> ${data.probabilidad_exacta.toExponential(6)}</p>
-                    <p><b>Interpretación:</b> ${data.interpretacion.rareza} (~${data.interpretacion.porcentaje.toFixed(2)}%)</p>
-                    <p><b>Cálculo completo:</b> ${data.calculo_completo.formula} = ${data.calculo_completo.resultado}</p>
-                `;
-
-            } catch (error) {
-                console.error("Error:", error);
-                alert("Error al conectar con la API: " + error.message);
-            }
-
-        });
-      }
-
-
-      const verificarBtn = probaContent.querySelector('#btn-verif');
-
-      if (verificarBtn && verificarBtn.textContent === 'Verificar') {
-        verificarBtn.addEventListener('click', async () => {
-          console.log("Iniciando verificación...");
-           if (!ultimoResultado) return;
-           console.log("Verificando con:", ultimoResultado);
-
-           try {
-                const res = await fetch("/simular-verificacion", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(ultimoResultado)
-                });
-
-                const data = await res.json();
-                
-                if (data.error) {
-                    alert("Error: " + data.error);
-                    return;
-                }
-                const sim = data.simulacion;
-                resultados.innerHTML += `
-                    <br><br>
-
-                    <h3>🧪 Verificación por Simulación</h3>
-                    <p><strong>Simulaciones realizadas:</strong> ${sim.num_simulaciones.toLocaleString()}</p>
-                    <p><strong>Éxitos encontrados:</strong> ${sim.exitos_encontrados.toLocaleString()}</p>
-                    <p><strong>Probabilidad simulada:</strong> ${sim.probabilidad_simulada.toFixed(6)}</p>
-                    <p><strong>Probabilidad teórica:</strong> ${sim.probabilidad_teorica.toFixed(6)}</p>
-                    <p><strong>Error porcentual:</strong> ${sim.error_porcentual.toFixed(2)}%</p>
-                    <p><strong>Concordancia:</strong> <span style="color: ${getConcordanciaColor(sim.concordancia)}; font-weight: bold;">${sim.concordancia.toUpperCase()}</span></p>
-                    ${getConcordanciaMessage(sim.concordancia, sim.error_porcentual)}
-                `;
-
-            } catch (error) {
-                console.error("Error:", error);
-                alert("Error al realizar la verificación: " + error.message);
-            }
-        });
-      }
-
-
+      const item = document.querySelector(`#categories-container .category-item[data-index="${index}"]`);
+      if (item) item.remove();
+      checkProbSum();
     }
+
+    function addCategoryProb() {
+      const container = document.getElementById('categories-prob-container');
+      const item = document.createElement('div');
+      item.className = 'category-item';
+      item.setAttribute('data-index', categoryProbIndex);
+      item.innerHTML = `
+        <div class="category-header">
+          <span class="category-name">Categoría ${categoryProbIndex + 1}</span>
+          <button class="remove-btn" onclick="removeCategoryProb(${categoryProbIndex})">✕</button>
+        </div>
+        <div class="input-row">
+          <div class="input-wrapper">
+            <label>Nombre</label>
+            <input type="text" class="cat-name-prob" value="Cat${categoryProbIndex + 1}">
+          </div>
+          <div class="input-wrapper">
+            <label>Probabilidad (p)</label>
+            <input type="number" class="cat-prob-prob" value="0.1" min="0" max="1" step="0.01">
+          </div>
+          <div class="input-wrapper">
+            <label>Frecuencia Deseada (k)</label>
+            <input type="number" class="cat-freq-prob" value="1" min="0">
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+      categoryProbIndex++;
+    }
+
+    function removeCategoryProb(index) {
+      const items = document.querySelectorAll('#categories-prob-container .category-item');
+      if (items.length <= 2) {
+        alert('Debe haber al menos 2 categorías');
+        return;
+      }
+      const item = document.querySelector(`#categories-prob-container .category-item[data-index="${index}"]`);
+      if (item) item.remove();
+    }
+
+    function checkProbSum() {
+      const probs = Array.from(document.querySelectorAll('.cat-prob')).map(input => parseFloat(input.value) || 0);
+      const sum = probs.reduce((a, b) => a + b, 0);
+      const warning = document.getElementById('prob-sum-warning');
+      
+      if (Math.abs(sum - 1) > 0.01) {
+        warning.style.display = 'block';
+        warning.textContent = `⚠️ Suma actual: ${sum.toFixed(3)}. Las probabilidades deben sumar 1.0`;
+      } else {
+        warning.style.display = 'none';
+      }
+    }
+
+    document.addEventListener('input', function(e) {
+      if (e.target.classList.contains('cat-prob')) {
+        checkProbSum();
+      }
+    });
+
+    async function simularMultinomial() {
+      const n_experimentos = parseInt(document.getElementById('n_experimentos').value);
+      const categorias = Array.from(document.querySelectorAll('.cat-name')).map(input => input.value);
+      const probabilidades = Array.from(document.querySelectorAll('.cat-prob')).map(input => parseFloat(input.value));
+
+      const suma = probabilidades.reduce((a, b) => a + b, 0);
+      if (Math.abs(suma - 1) > 0.01) {
+        alert(`Las probabilidades deben sumar 1.0 (suma actual: ${suma.toFixed(3)})`);
+        return;
+      }
+
+      try {
+        const response = await fetch('/multinomial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ n_experimentos, categorias, probabilidades })
+        });
+
+        const data = await response.json();
+        
+        const resultadosDiv = document.getElementById('resultados-sim');
+        resultadosDiv.innerHTML = `
+          <div class="summary-card">
+            <h3 style="margin-bottom: 1rem; color: #333;">📊 Resumen de la Simulación</h3>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Total Experimentos</div>
+                <div class="summary-value">${n_experimentos.toLocaleString()}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Categorías</div>
+                <div class="summary-value">${categorias.length}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-container">
+            <div id="chart-sim" style="width: 100%; height: 400px;"></div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-title">📖 Cómo se calculó esta simulación</div>
+            <div class="step">
+              <strong>Paso 1:</strong> Se realizaron ${n_experimentos.toLocaleString()} experimentos independientes
+            </div>
+            <div class="step">
+              <strong>Paso 2:</strong> En cada experimento, se seleccionó una categoría según las probabilidades definidas:
+              ${categorias.map((cat, i) => `<br>&nbsp;&nbsp;&nbsp;&nbsp;• ${cat}: ${(probabilidades[i] * 100).toFixed(1)}%`).join('')}
+            </div>
+            <div class="step">
+              <strong>Paso 3:</strong> Se contó la frecuencia de cada categoría
+            </div>
+            <div class="step">
+              <strong>Paso 4:</strong> Se compararon las frecuencias observadas vs. esperadas
+            </div>
+          </div>
+
+          <table style="width: 100%; margin-top: 2rem; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #667eea; color: white;">
+                <th style="padding: 1rem; text-align: left;">Categoría</th>
+                <th style="padding: 1rem; text-align: center;">Prob. Teórica</th>
+                <th style="padding: 1rem; text-align: center;">Frec. Esperada</th>
+                <th style="padding: 1rem; text-align: center;">Frec. Observada</th>
+                <th style="padding: 1rem; text-align: center;">Diferencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.categorias.map((cat, i) => `
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 1rem;"><strong>${cat}</strong></td>
+                  <td style="padding: 1rem; text-align: center;">${(probabilidades[i] * 100).toFixed(1)}%</td>
+                  <td style="padding: 1rem; text-align: center;">${data.frecuencias_esperadas[i].toFixed(1)}</td>
+                  <td style="padding: 1rem; text-align: center;"><strong>${data.frecuencias_observadas[i]}</strong></td>
+                  <td style="padding: 1rem; text-align: center; color: ${Math.abs(data.frecuencias_observadas[i] - data.frecuencias_esperadas[i]) < 50 ? '#27ae60' : '#e74c3c'}">
+                    ${(data.frecuencias_observadas[i] - data.frecuencias_esperadas[i]).toFixed(1)}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+        // Gráfica
+        const trace1 = {
+          x: categorias,
+          y: data.frecuencias_esperadas,
+          name: 'Frecuencia Esperada',
+          type: 'bar',
+          marker: { color: 'rgba(102, 126, 234, 0.6)' }
+        };
+
+        const trace2 = {
+          x: categorias,
+          y: data.frecuencias_observadas,
+          name: 'Frecuencia Observada',
+          type: 'bar',
+          marker: { color: 'rgba(118, 75, 162, 0.8)' }
+        };
+
+        const layout = {
+          title: 'Comparación: Frecuencias Esperadas vs Observadas',
+          barmode: 'group',
+          xaxis: { title: 'Categorías' },
+          yaxis: { title: 'Frecuencia' }
+        };
+
+        Plotly.newPlot('chart-sim', [trace1, trace2], layout, { responsive: true });
+
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al conectar con la API');
+      }
+    }
+
+    async function calcularProbabilidad() {
+      const n_experimentos = parseInt(document.getElementById('n_exp_prob').value);
+      const categorias = Array.from(document.querySelectorAll('.cat-name-prob')).map(input => input.value);
+      const probabilidades = Array.from(document.querySelectorAll('.cat-prob-prob')).map(input => parseFloat(input.value));
+      const frecuencias_deseadas = Array.from(document.querySelectorAll('.cat-freq-prob')).map(input => parseInt(input.value));
+
+      const sumaProb = probabilidades.reduce((a, b) => a + b, 0);
+      const sumaFreq = frecuencias_deseadas.reduce((a, b) => a + b, 0);
+
+      if (Math.abs(sumaProb - 1) > 0.01) {
+        alert(`Las probabilidades deben sumar 1.0 (suma actual: ${sumaProb.toFixed(3)})`);
+        return;
+      }
+
+      if (sumaFreq !== n_experimentos) {
+        alert(`Las frecuencias deben sumar ${n_experimentos} (suma actual: ${sumaFreq})`);
+        return;
+      }
+
+      try {
+        const response = await fetch('/calcular-probabilidad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ n_experimentos, categorias, probabilidades, frecuencias_deseadas })
+        });
+
+        const data = await response.json();
+        window.ultimoCalculo = { n_experimentos, categorias, probabilidades, frecuencias_deseadas };
+
+        const resultadosDiv = document.getElementById('resultados-prob');
+        resultadosDiv.innerHTML = `
+          <div class="summary-card">
+            <h3 style="margin-bottom: 1rem; color: #333;">🎯 Probabilidad Calculada</h3>
+            <div style="text-align: center; padding: 2rem; background: white; border-radius: 10px; margin-top: 1rem;">
+              <div style="font-size: 3rem; font-weight: 700; color: #667eea; margin-bottom: 0.5rem;">
+                ${(data.probabilidad_exacta * 100).toExponential(4)}%
+              </div>
+              <div style="font-size: 1.2rem; color: #666;">
+                Probabilidad Exacta
+              </div>
+              <div style="margin-top: 1rem; padding: 1rem; background: #f8f9ff; border-radius: 8px;">
+                <strong style="color: #f39c12;">${data.interpretacion.rareza.toUpperCase()}</strong>
+                <br>
+                Aproximadamente 1 en ${data.interpretacion.uno_en.toLocaleString()} casos
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-container">
+            <div id="chart-prob" style="width: 100%; height: 350px;"></div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-title">🧮 Explicación del Cálculo Multinomial</div>
+            
+            <p style="margin-bottom: 1rem; color: #555; line-height: 1.6;">
+              La distribución multinomial calcula la probabilidad de obtener una configuración específica de resultados cuando realizamos múltiples experimentos con varias categorías posibles.
+            </p>
+
+            <div style="background: white; padding: 1.5rem; border-radius: 8px; margin: 1rem 0;">
+              <strong>📐 Fórmula General:</strong>
+              <div class="formula">
+                P(X₁=k₁, X₂=k₂, ..., Xₘ=kₘ) = (n! / (k₁! × k₂! × ... × kₘ!)) × p₁^k₁ × p₂^k₂ × ... × pₘ^kₘ
+              </div>
+            </div>
+
+            <div class="step">
+              <strong>Paso 1: Coeficiente Multinomial</strong>
+              <div class="formula">
+                n! / (${frecuencias_deseadas.join('! × ')}!) = ${data.coeficiente_multinomial.toExponential(4)}
+              </div>
+              <p style="margin-top: 0.5rem; color: #666; font-size: 0.9rem;">
+                Este número representa las formas posibles de ordenar los resultados
+              </p>
+            </div>
+
+            <div class="step">
+              <strong>Paso 2: Producto de Probabilidades</strong>
+              ${categorias.map((cat, i) => `
+                <div style="margin: 0.5rem 0; padding: 0.5rem; background: white; border-radius: 5px;">
+                  • ${cat}: (${probabilidades[i].toFixed(3)})^${frecuencias_deseadas[i]} = ${Math.pow(probabilidades[i], frecuencias_deseadas[i]).toExponential(4)}
+                </div>
+              `).join('')}
+              <div class="formula" style="margin-top: 1rem;">
+                Producto Total = ${data.producto_probabilidades.toExponential(6)}
+              </div>
+            </div>
+
+            <div class="step">
+              <strong>Paso 3: Resultado Final</strong>
+              <div class="formula">
+                ${data.coeficiente_multinomial.toExponential(4)} × ${data.producto_probabilidades.toExponential(6)} = ${data.probabilidad_exacta.toExponential(6)}
+              </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #e8f4f8; border-radius: 8px; border-left: 4px solid #3498db;">
+              <strong style="color: #2980b9;">💡 Interpretación:</strong>
+              <p style="margin-top: 0.5rem; color: #555;">
+                Si repitieras este experimento muchas veces, esperarías ver esta configuración exacta aproximadamente 
+                <strong>${(data.probabilidad_exacta * 100).toFixed(4)}%</strong> de las veces.
+              </p>
+            </div>
+          </div>
+
+          <table style="width: 100%; margin-top: 2rem; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #667eea; color: white;">
+                <th style="padding: 1rem; text-align: left;">Categoría</th>
+                <th style="padding: 1rem; text-align: center;">Probabilidad (p)</th>
+                <th style="padding: 1rem; text-align: center;">Frecuencia Deseada (k)</th>
+                <th style="padding: 1rem; text-align: center;">Frecuencia Esperada</th>
+                <th style="padding: 1rem; text-align: center;">p^k</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${categorias.map((cat, i) => `
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 1rem;"><strong>${cat}</strong></td>
+                  <td style="padding: 1rem; text-align: center;">${probabilidades[i].toFixed(3)}</td>
+                  <td style="padding: 1rem; text-align: center;"><strong>${frecuencias_deseadas[i]}</strong></td>
+                  <td style="padding: 1rem; text-align: center;">${data.frecuencias_esperadas[i].toFixed(2)}</td>
+                  <td style="padding: 1rem; text-align: center; font-family: monospace;">${Math.pow(probabilidades[i], frecuencias_deseadas[i]).toExponential(3)}</td>
+                </tr>
+              `).join('')}
+              <tr style="background: #f8f9ff; font-weight: bold;">
+                <td style="padding: 1rem;" colspan="2">TOTAL</td>
+                <td style="padding: 1rem; text-align: center;">${frecuencias_deseadas.reduce((a,b) => a+b, 0)}</td>
+                <td style="padding: 1rem; text-align: center;">${data.frecuencias_esperadas.reduce((a,b) => a+b, 0).toFixed(2)}</td>
+                <td style="padding: 1rem; text-align: center; font-family: monospace;">${data.producto_probabilidades.toExponential(3)}</td>
+              </tr>
+            </tbody>
+          </table>
+        `;
+
+        // Gráfica comparativa
+        const trace1 = {
+          x: categorias,
+          y: data.frecuencias_esperadas,
+          name: 'Frecuencia Esperada',
+          type: 'bar',
+          marker: { color: 'rgba(102, 126, 234, 0.6)' }
+        };
+
+        const trace2 = {
+          x: categorias,
+          y: frecuencias_deseadas,
+          name: 'Frecuencia Deseada',
+          type: 'bar',
+          marker: { color: 'rgba(231, 76, 60, 0.8)' }
+        };
+
+        const layout = {
+          title: 'Comparación: Frecuencias Esperadas vs Deseadas',
+          barmode: 'group',
+          xaxis: { title: 'Categorías' },
+          yaxis: { title: 'Frecuencia' }
+        };
+
+        Plotly.newPlot('chart-prob', [trace1, trace2], layout, { responsive: true });
+
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al conectar con la API');
+      }
+    }
+
+    async function verificarSimulacion() {
+      if (!window.ultimoCalculo) {
+        alert('Primero debes calcular una probabilidad');
+        return;
+      }
+
+      try {
+        const response = await fetch('/simular-verificacion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(window.ultimoCalculo)
+        });
+
+        const data = await response.json();
+        const sim = data.simulacion;
+
+        const resultadosDiv = document.getElementById('resultados-prob');
+        resultadosDiv.innerHTML += `
+          <div style="margin-top: 2rem; padding: 2rem; background: linear-gradient(135deg, rgba(39, 174, 96, 0.1), rgba(34, 153, 84, 0.1)); border-radius: 15px; border: 3px solid #27ae60;">
+            <h3 style="color: #27ae60; margin-bottom: 1.5rem; font-size: 1.8rem;">
+              ✓ Verificación por Simulación Monte Carlo
+            </h3>
+
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Simulaciones Realizadas</div>
+                <div class="summary-value" style="color: #27ae60;">${sim.num_simulaciones.toLocaleString()}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Éxitos Encontrados</div>
+                <div class="summary-value" style="color: #27ae60;">${sim.exitos_encontrados.toLocaleString()}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Probabilidad Simulada</div>
+                <div class="summary-value" style="color: #27ae60;">${(sim.probabilidad_simulada * 100).toFixed(6)}%</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Probabilidad Teórica</div>
+                <div class="summary-value" style="color: #667eea;">${(sim.probabilidad_teorica * 100).toFixed(6)}%</div>
+              </div>
+            </div>
+
+            <div style="margin-top: 2rem; padding: 1.5rem; background: white; border-radius: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <strong style="font-size: 1.2rem;">Análisis de Concordancia</strong>
+                <span style="padding: 0.5rem 1.5rem; background: ${sim.concordancia === 'excelente' ? '#27ae60' : sim.concordancia === 'buena' ? '#f39c12' : '#e74c3c'}; color: white; border-radius: 20px; font-weight: bold;">
+                  ${sim.concordancia.toUpperCase()}
+                </span>
+              </div>
+              
+              <div style="margin: 1rem 0;">
+                <div style="background: #ecf0f1; height: 30px; border-radius: 15px; overflow: hidden; position: relative;">
+                  <div style="background: ${sim.concordancia === 'excelente' ? 'linear-gradient(90deg, #27ae60, #2ecc71)' : sim.concordancia === 'buena' ? 'linear-gradient(90deg, #f39c12, #f1c40f)' : 'linear-gradient(90deg, #e74c3c, #ec7063)'}; height: 100%; width: ${100 - Math.min(sim.error_porcentual, 100)}%; transition: width 0.5s ease;"></div>
+                </div>
+                <p style="text-align: center; margin-top: 0.5rem; color: #666;">
+                  Error: ${sim.error_porcentual.toFixed(2)}%
+                </p>
+              </div>
+
+              <div class="explanation-box" style="background: #fff; border: 2px solid #3498db;">
+                <div style="color: #2980b9; font-weight: 600; margin-bottom: 0.5rem;">
+                  📊 ¿Qué significa esto?
+                </div>
+                <p style="color: #555; line-height: 1.6;">
+                  La verificación por simulación Monte Carlo consiste en repetir el experimento miles de veces y contar cuántas veces aparece exactamente la configuración deseada.
+                  <br><br>
+                  En este caso, de <strong>${sim.num_simulaciones.toLocaleString()}</strong> simulaciones, 
+                  la configuración deseada apareció <strong>${sim.exitos_encontrados.toLocaleString()}</strong> veces.
+                  <br><br>
+                  <strong>Conclusión:</strong> ${
+                    sim.concordancia === 'excelente' 
+                      ? '¡Excelente! Los resultados de la simulación coinciden muy bien con la probabilidad teórica calculada.' 
+                      : sim.concordancia === 'buena'
+                      ? 'Buena concordancia. La diferencia es aceptable y esperada en simulaciones finitas.'
+                      : 'Concordancia regular. Considera aumentar el número de simulaciones para mayor precisión.'
+                  }
+                </p>
+              </div>
+
+              <div style="margin-top: 1rem; padding: 1rem; background: #f8f9ff; border-radius: 8px; border-left: 4px solid #667eea;">
+                <strong>Diferencia absoluta:</strong> ${sim.diferencia_absoluta.toExponential(6)}
+                <br>
+                <strong>Error relativo:</strong> ${sim.error_porcentual.toFixed(4)}%
+              </div>
+            </div>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al realizar la verificación');
+      }
+    }
+
+    // Inicialización
+    checkProbSum();
+  
 
     // Configuración para Exponencial
     function Exponential() {
