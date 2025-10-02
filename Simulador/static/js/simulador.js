@@ -179,6 +179,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const numExp = parseInt(document.getElementById('bernoulli-n').value);
             const probExito = parseFloat(document.getElementById('bernoulli-p').value);
             mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+
+            if (probExito < 0 || probExito > 1) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ La probabilidad de éxito (p) debe estar entre 0 y 1.</div>';
+                return;
+            }
+            if (numExp <= 0) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de experimentos debe ser un entero positivo.</div>';
+                return;
+            }
             try {
                 const response = await fetch("/binomial_puntual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, probabilidad_exito: probExito }) });
                 const result = await response.json();
@@ -199,6 +208,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const numExp = parseInt(document.getElementById('binomial-sims').value);
             const p = parseFloat(document.getElementById('binomial-p').value);
             const n = parseInt(document.getElementById('binomial-n').value);
+            if (p < 0 || p > 1) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ La probabilidad de éxito (p) debe estar entre 0 y 1.</div>';
+                return;
+            }
+            if (n <= 0 || !Number.isInteger(n)) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de pruebas (n) debe ser un entero positivo.</div>';
+                return;
+            }
+            if (numExp <= 0 || !Number.isInteger(numExp)) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de experimentos debe ser un entero positivo.</div>';
+                return;
+            }
             mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
             try {
                 const response = await fetch("/binomial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, probabilidad_exito: p, num_pruebas: n }) });
@@ -221,6 +242,14 @@ document.addEventListener('DOMContentLoaded', function() {
         content.querySelector('.btn-primary').addEventListener('click', async () => {
             const numExp = parseInt(document.getElementById('exponencial-n').value);
             const lambda = parseFloat(document.getElementById('exponencial-lambda').value);
+            if( lambda <= 0) {
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ La tasa (λ) debe ser un número positivo.</div>';
+              return;
+            }
+            if (numExp <= 0 || !Number.isInteger(numExp)) {
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de experimentos debe ser un entero positivo.</div>';
+              return;
+            }
             mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
             try {
                 const response = await fetch("/exponencial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, tasa: lambda }) });
@@ -249,6 +278,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const numExp = parseInt(document.getElementById('normal-n').value);
             const mu = parseFloat(document.getElementById('normal-mu').value);
             const sigma = parseFloat(document.getElementById('normal-sigma').value);
+            if( sigma <= 0) {
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ La desviación estándar (σ) debe ser un número positivo.</div>';
+              return;
+            }
+            if (numExp <= 0 || !Number.isInteger(numExp)) {
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de experimentos debe ser un entero positivo.</div>';
+              return;
+            }
+            
             mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
             try {
                 const response = await fetch("/normal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, media: mu, desviacion_estandar: sigma }) });
@@ -275,6 +313,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const content = document.getElementById('gibbs');
         content.querySelector('.btn-primary').addEventListener('click', async () => {
             const params = { x_init: parseFloat(document.getElementById('gibbs-x-init').value), y_init: parseFloat(document.getElementById('gibbs-y-init').value), n_samples: parseInt(document.getElementById('gibbs-samples').value), burn_in: parseInt(document.getElementById('gibbs-burnin').value), x_bounds: [0.0, 3.0], y_bounds: [0.0, 2.0] };
+            if (params.n_samples <= 0 || !Number.isInteger(params.n_samples)) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de muestras debe ser un entero positivo.</div>';
+                return; 
+            }
+            if (params.burn_in < 0 || !Number.isInteger(params.burn_in) || params.burn_in >= params.n_samples) {
+                mainChart.innerHTML = '<div class="chart-placeholder">❌ El período de burn-in debe ser un entero no negativo menor que el número de muestras.</div>';
+                return;
+            }
+            if (params.x_init < params.x_bounds[0] || params.x_init > params.x_bounds[1] || params.y_init < params.y_bounds[0] || params.y_init > params.y_bounds[1]) {
+                mainChart.innerHTML = `<div class="chart-placeholder">❌ Los valores iniciales deben estar dentro de los límites: X[${params.x_bounds[0]}, ${params.x_bounds[1]}], Y[${params.y_bounds[0]}, ${params.y_bounds[1]}].</div>`;
+                return;
+            }
             mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación 3D...</div>';
             secondaryChart.style.display = 'none';
             try {
@@ -299,6 +349,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const content = document.getElementById('normal-bivariada');
         content.querySelector('.btn-primary').addEventListener('click', async () => {
             const params = { num_experimentos: parseInt(document.getElementById('bivariada-n').value), mu_x: parseFloat(document.getElementById('bivariada-mu-x').value), mu_y: parseFloat(document.getElementById('bivariada-mu-y').value), sigma_x: parseFloat(document.getElementById('bivariada-sigma-x').value), sigma_y: parseFloat(document.getElementById('bivariada-sigma-y').value), rho: parseFloat(document.getElementById('bivariada-rho').value) };
+            if(params.sigma_x <= 0 || params.sigma_y <= 0){
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ Las desviaciones estándar (σx, σy) deben ser números positivos.</div>';
+              return;
+            }
+            if (params.rho < -1 || params.rho > 1) {
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ La correlación (ρ) debe estar entre -1 y 1.</div>';
+              return;
+            }
+            if (params.num_experimentos <= 0 || !Number.isInteger(params.num_experimentos)) {
+              mainChart.innerHTML = '<div class="chart-placeholder">❌ El número de experimentos debe ser un entero positivo.</div>';
+              return;
+            }
+            
             mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación 3D...</div>';
             secondaryChart.style.display = 'block';
             secondaryChart.innerHTML = '<div class="chart-placeholder">🔄 Generando gráfico 2D...</div>';
