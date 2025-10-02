@@ -641,3 +641,7 @@ async def normal_bivariada(data: NormalBivariadaInput):
         }
     except Exception as e:
         return {"error": f"Error en la simulación: {str(e)}"}
+    
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(simulador)
