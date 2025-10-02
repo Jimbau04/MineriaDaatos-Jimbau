@@ -306,13 +306,58 @@
 
         <div class="distribution-content" id="gibbs">
           <div class="inputs-section">
-            <div class="input-group"><label for="gibbs-x-init">Valor inicial X:</label><input type="number" id="gibbs-x-init" step="0.1" value="1"></div>
-            <div class="input-group"><label for="gibbs-y-init">Valor inicial Y:</label><input type="number" id="gibbs-y-init" step="0.1" value="1"></div>
-            <div class="input-group"><label for="gibbs-samples">Número de muestras:</label><input type="number" id="gibbs-samples" min="100" value="5000"></div>
-            <div class="input-group"><label for="gibbs-burnin">Período de calentamiento (burn-in):</label><input type="number" id="gibbs-burnin" min="0" value="1000"></div>
+            <div class="input-group">
+              <label for="gibbs-function-select">Selecciona una función de densidad f(x, y):</label>
+              <select id="gibbs-function-select" class="input-group input"></select>
+            </div>
+
+            <div class="input-group">
+                <label>Límites del Dominio (No editables):</label>
+                <div class="bounds-display-grid">
+                    <div>
+                        <span>X Mín:</span>
+                        <code id="gibbs-bound-xmin">0</code>
+                    </div>
+                    <div>
+                        <span>X Máx:</span>
+                        <code id="gibbs-bound-xmax">0</code>
+                    </div>
+                    <div>
+                        <span>Y Mín:</span>
+                        <code id="gibbs-bound-ymin">0</code>
+                    </div>
+                    <div>
+                        <span>Y Máx:</span>
+                        <code id="gibbs-bound-ymax">0</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Valores iniciales (opcional):</label>
+                <div class="bounds-grid" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <input type="number" id="gibbs-x-initial" placeholder="x inicial (auto)">
+                    <input type="number" id="gibbs-y-initial" placeholder="y inicial (auto)">
+                </div>
+            </div>
+
+            <div class="bounds-grid" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="input-group">
+                    <label for="gibbs-n-samples">Número de muestras:</label>
+                    <input type="number" id="gibbs-n-samples" value="2000" min="100">
+                </div>
+                <div class="input-group">
+                    <label for="gibbs-burn-in">Burn-in:</label>
+                    <input type="number" id="gibbs-burn-in" value="500" min="0">
+                </div>
+            </div>
+            
+            <div id="gibbs-status" style="margin-top: 1rem;"></div>
           </div>
+
           <div class="buttons-section">
-            <button class="btn-primary">Simular</button>
+            <button class="btn-primary" id="gibbs-validate-btn">🔍 Validar</button>
+            <button class="btn-primary" id="gibbs-sample-btn" disabled>Simular</button>
             <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
