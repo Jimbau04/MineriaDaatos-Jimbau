@@ -9,19 +9,13 @@
 
 <body>
 
-  <!-- Encabezado con menu despegable -->
-  <div class = "encabezado text-center">
-    <img src="/static/recursos/lapiz.png" alt = "Logo" class ="logo">
+  <div class="encabezado text-center">
+    <img src="/static/recursos/lapiz.png" alt="Logo" class="logo">
     <h1 style="text-align: center;">Simulador de Densidades</h1>
-    
   </div>
 
-  
-
   <div class="container">
-
     
-    <!-- Navegación lateral -->
     <nav class="sidebar">
       <div class="sidebar-title">Distribuciones</div>
       <button class="nav-item active" data-distribution="bernoulli">Bernoulli</button>
@@ -33,24 +27,10 @@
       <button class="nav-item" data-distribution="normal-bivariada">Normal Bivariada</button>
     </nav>
 
-    <!-- Contenido principal -->
     <div class="main-content">
-      <!-- Panel de resultados -->
-      <div class="results-panel">
-        <div class="results-header">
-          <h3>Resultados</h3>
-          <button class="btn">Descargar CSV</button>
-        </div>
-        <div class="results-content">
-          <p>¡Aquí podrás observar los resultados de la simulación!</p>
-        </div>
-      </div>
-
-      <!-- Panel de simulación -->
       <div class="simulation-panel">
         <h2 class="panel-title" id="panelTitle">Distribución de Bernoulli</h2>
 
-        <!-- Contenido  Bernu -->
         <div class="distribution-content active" id="bernoulli">
           <div class="inputs-section">
             <div class="input-group">
@@ -64,11 +44,10 @@
           </div>
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
-            <button class="btn-primary">Limpiar</button>
+            <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
 
-        <!-- Contenido para Binomial -->
         <div class="distribution-content" id="binomial">
           <div class="inputs-section">
             <div class="input-group">
@@ -86,14 +65,12 @@
           </div>
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
-            <button class="btn-primary">Limpiar</button>
+            <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
 
-
-
-
-        <!-- Contenido para Multinomial -->
+        
+          <!-- Contenido para Multinomial -->
         <div class="distribution-content" id="multinomial">
           
           <div class="tabs">
@@ -284,6 +261,7 @@
       </div>
     </div>
         </div>
+        
       
     
 
@@ -291,7 +269,7 @@
         <div class="distribution-content" id="exponencial">
           <div class="inputs-section">
             <div class="input-group">
-              <label for="exponencial-lambda">Parámetro λ (lambda):</label>
+              <label for="exponencial-lambda">Parámetro λ (tasa):</label>
               <input type="number" id="exponencial-lambda" min="0.01" step="0.01" value="1">
             </div>
             <div class="input-group">
@@ -301,11 +279,10 @@
           </div>
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
-            <button class="btn-primary">Limpiar</button>
+            <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
 
-        <!-- Contenido para Normal -->
         <div class="distribution-content" id="normal">
           <div class="inputs-section">
             <div class="input-group">
@@ -323,92 +300,62 @@
           </div>
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
-            <button class="btn-primary">Limpiar</button>
+            <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
 
-        <!-- Contenido para Método de Gibbs -->
         <div class="distribution-content" id="gibbs">
           <div class="inputs-section">
-             <div class="input-group">
-              <label for="limite_inf">Limite inferior:</label>
-              <input type="number" id="limite_inf" value="0">
-            </div>
-            <div class="input-group">
-              <label for="limite_sup">Limite superior:</label>
-              <input type="number" id="limite_sup" value="2">
-            </div>
-            <div class="input-group">
-              <label for="x0">X:</label>
-              <input type="number" id="x0" value="0">
-            </div>
-            <div class="input-group">
-              <label for="y0">Y:</label>
-              <input type="number" id="y0" value="0">
-            </div>
-            <div class="input-group">
-              <label for="gibbs-iterations">Número de esperimentos:</label>
-              <input type="number" id="gibbs-iterations" min="0" value="1000">
-            </div>
-            <div class="input-group">
-              <label for="gibbs-burnin">Período de calentamiento:</label>
-              <input type="number" id="gibbs-burnin" min="0" value="100">
-            </div>
+            <div class="input-group"><label for="gibbs-x-init">Valor inicial X:</label><input type="number" id="gibbs-x-init" step="0.1" value="1"></div>
+            <div class="input-group"><label for="gibbs-y-init">Valor inicial Y:</label><input type="number" id="gibbs-y-init" step="0.1" value="1"></div>
+            <div class="input-group"><label for="gibbs-samples">Número de muestras:</label><input type="number" id="gibbs-samples" min="100" value="5000"></div>
+            <div class="input-group"><label for="gibbs-burnin">Período de calentamiento (burn-in):</label><input type="number" id="gibbs-burnin" min="0" value="1000"></div>
           </div>
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
-            <button class="btn-primary">Limpiar</button>
+            <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
 
         <div class="distribution-content" id="normal-bivariada">
           <div class="inputs-section">
-            <div class="input-group">
-              <label for="bivariada-mu-x">Media X (μₓ):</label>
-              <input type="number" id="bivariada-mu-x" step="0.1" value="0">
-            </div>
-            <div class="input-group">
-              <label for="bivariada-mu-y">Media Y (μᵧ):</label>
-              <input type="number" id="bivariada-mu-y" step="0.1" value="0">
-            </div>
-            <div class="input-group">
-              <label for="bivariada-sigma-x">Desviación X (σₓ):</label>
-              <input type="number" id="bivariada-sigma-x" min="0.01" step="0.1" value="1">
-            </div>
-            <div class="input-group">
-              <label for="bivariada-sigma-y">Desviación Y (σᵧ):</label>
-              <input type="number" id="bivariada-sigma-y" min="0.01" step="0.1" value="1">
-            </div>
-            <div class="input-group">
-              <label for="bivariada-rho">Correlación (ρ):</label>
-              <input type="number" id="bivariada-rho" min="-1" max="1" step="0.1" value="0.5">
-              <small>Valor entre -1 y 1</small>
-            </div>
-            <div class="input-group">
-              <label for="bivariada-n">Número de simulaciones:</label>
-              <input type="number" id="bivariada-n" min="100" value="1000">
-            </div>
+            <div class="input-group"><label for="bivariada-mu-x">Media X (μₓ):</label><input type="number" id="bivariada-mu-x" step="0.1" value="0"></div>
+            <div class="input-group"><label for="bivariada-mu-y">Media Y (μᵧ):</label><input type="number" id="bivariada-mu-y" step="0.1" value="0"></div>
+            <div class="input-group"><label for="bivariada-sigma-x">Desviación X (σₓ):</label><input type="number" id="bivariada-sigma-x" min="0.01" step="0.1" value="1"></div>
+            <div class="input-group"><label for="bivariada-sigma-y">Desviación Y (σᵧ):</label><input type="number" id="bivariada-sigma-y" min="0.01" step="0.1" value="1"></div>
+            <div class="input-group"><label for="bivariada-rho">Correlación (ρ):</label><input type="number" id="bivariada-rho" min="-1" max="1" step="0.1" value="0.5"></div>
+            <div class="input-group"><label for="bivariada-n">Número de simulaciones:</label><input type="number" id="bivariada-n" min="100" value="2000"></div>
           </div>
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
-            <button class="btn-primary">Limpiar</button>
+            <button class="btn-secondary">Limpiar</button>
           </div>
         </div>
 
-        <!-- Sección de gráfica -->
-        <div class="chart-section" id="chart" style="height: 400px; margin-top: 20px;">
-          <div class="chart-placeholder">
-            📈 Selecciona una distribución y ajusta los parámetros para generar la gráfica
+        <div id="charts-container">
+            <div class="chart-section" id="chart-secondary" style="display: none; height: 400px; margin-bottom: 1rem;"></div>
+            <div class="chart-section" id="chart-main" style="min-height: 450px;">
+                <div class="chart-placeholder">
+                    📈 Ajusta los parámetros y presiona "Simular" para generar la gráfica
+                </div>
+            </div>
+        </div>
+
+        <div class="results-panel" id="results-panel-container">
+          <div class="results-header">
+            <h3>Resultados de la Simulación</h3>
+            <button class="btn" id="download-csv-btn">Descargar CSV</button>
+          </div>
+          <div class="results-content" id="results-content-area">
+            <p>¡Aquí podrás observar los resultados de la simulación!</p>
           </div>
         </div>
+
       </div>
     </div>
   </div>
   
-  <!-- Librerías necesarias -->
-  <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
-
-  <!-- Script -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="/static/js/simulador.js"></script>
   
 </body>

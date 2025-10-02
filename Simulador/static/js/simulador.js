@@ -1,3 +1,152 @@
+// CÓDIGO CORREGIDO Y UNIFICADO EN UN SOLO BLOQUE DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Referencias a elementos del DOM (declaradas una sola vez)
+    const mainChart = document.getElementById('chart-main');
+    const secondaryChart = document.getElementById('chart-secondary');
+    const resultadosContainer = document.getElementById('results-content-area');
+    const panelTitle = document.getElementById('panelTitle');
+    const navItems = document.querySelectorAll('.nav-item');
+    const distributionContents = document.querySelectorAll('.distribution-content');
+    const downloadBtn = document.getElementById('download-csv-btn');
+    const resultsPanelContainer = document.getElementById('results-panel-container');
+
+    // Estado global para la última simulación
+    let datosSimulacionActual = null;
+    let nombreSimulacionActual = '';
+
+    const TITULOS = {
+        'bernoulli': 'Distribución de Bernoulli',
+        'binomial': 'Distribución Binomial',
+        'multinomial': 'Distribución Multinomial',
+        'exponencial': 'Distribución Exponencial',
+        'normal': 'Distribución Normal',
+        'gibbs': 'Método de Gibbs',
+        'normal-bivariada': 'Distribución Normal Bivariada'
+    };
+
+    // --- HELPERS MATEMÁTICOS ---
+    function factorial(n) {
+        if (n < 0) return NaN;
+        if (n === 0 || n === 1) return 1;
+        let result = 1;
+        for (let i = 2; i <= n; i++) {
+            result *= i;
+        }
+        return result;
+    }
+
+    function combinations(n, k) {
+        if (k < 0 || k > n) return 0;
+        if (n > 170) { // Límite para factorial en JS
+            let res = 0;
+            for(let i = 1; i <= k; i++){
+               res += Math.log(n - i + 1) - Math.log(i);
+            }
+            return Math.round(Math.exp(res));
+        }
+        return factorial(n) / (factorial(k) * factorial(n - k));
+    }
+
+    // --- MÓDULOS PRINCIPALES ---
+
+    function getGraphLayout(title, is3D = false) {
+        const layout = {
+            title: { text: title, font: { size: 20, color: '#333' }, x: 0.5 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            margin: { l: 60, r: 20, b: 50, t: 50 },
+            xaxis: { title: { font: { size: 14, color: '#555' } }, tickfont: { color: '#555' }, gridcolor: 'rgba(0, 0, 0, 0.05)'},
+            yaxis: { title: { font: { size: 14, color: '#555' } }, tickfont: { color: '#555' }, gridcolor: 'rgba(0, 0, 0, 0.1)'},
+            legend: { font: { color: '#333' } }
+        };
+        if (is3D) {
+            layout.scene = {
+                xaxis: { title: 'X', gridcolor: 'rgba(0,0,0,0.1)' },
+                yaxis: { title: 'Y', gridcolor: 'rgba(0,0,0,0.1)' },
+                zaxis: { title: 'Densidad', gridcolor: 'rgba(0,0,0,0.1)' }
+            };
+        }
+        return layout;
+    }
+
+    function mostrarResultados(simName, data) {
+        let html = '<div class="stats-grid">';
+        let primerosResultadosHtml = '';
+
+        switch (simName) {
+            case 'bernoulli':
+                html += `<div class="stat-card"><div class="stat-value">${data.exitos}</div><div class="stat-label">Éxitos</div></div><div class="stat-card"><div class="stat-value">${data.fracasos}</div><div class="stat-label">Fracasos</div></div>`;
+                primerosResultadosHtml = `<p><strong>Primeros 10 resultados:</strong> ${data.resultados_individuales.slice(0, 10).join(", ")}</p>`;
+                break;
+            case 'binomial': case 'exponencial': case 'normal':
+                const stats = data.estadisticas;
+                html += `<div class="stat-card"><div class="stat-value">${stats.media.toFixed(4)}</div><div class="stat-label">Media</div></div><div class="stat-card"><div class="stat-value">${stats.desviacion_estandar.toFixed(4)}</div><div class="stat-label">Desv. Est.</div></div><div class="stat-card"><div class="stat-value">${stats.minimo.toFixed(4)}</div><div class="stat-label">Mínimo</div></div><div class="stat-card"><div class="stat-value">${stats.maximo.toFixed(4)}</div><div class="stat-label">Máximo</div></div>`;
+                const resultados = data.resultados_individuales || data.valores;
+                primerosResultadosHtml = `<p><strong>Primeros 10 resultados:</strong> ${resultados.slice(0, 10).map(v => v.toFixed(3)).join(", ")}</p>`;
+                break;
+            case 'gibbs':
+                 html += `<div class="stat-card"><div class="stat-value">${data.mean_x.toFixed(4)}</div><div class="stat-label">Media X</div></div><div class="stat-card"><div class="stat-value">${data.std_x.toFixed(4)}</div><div class="stat-label">Desv. Std X</div></div><div class="stat-card"><div class="stat-value">${data.mean_y.toFixed(4)}</div><div class="stat-label">Media Y</div></div><div class="stat-card"><div class="stat-value">${data.std_y.toFixed(4)}</div><div class="stat-label">Desv. Std Y</div></div><div class="stat-card" style="grid-column: span 2;"><div class="stat-value">${data.correlation.toFixed(4)}</div><div class="stat-label">Correlación</div></div>`;
+                const primerosXGibbs = data.x_samples.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                const primerosYGibbs = data.y_samples.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXGibbs}<br><strong>Primeros 10 Y:</strong> ${primerosYGibbs}</p>`;
+                break;
+            case 'normal-bivariada':
+                const obs = data.estadisticas_observadas;
+                html += `<div class="stat-card"><div class="stat-value">${obs.media_x.toFixed(4)}</div><div class="stat-label">Media X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_x.toFixed(4)}</div><div class="stat-label">Desv. X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.media_y.toFixed(4)}</div><div class="stat-label">Media Y Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_y.toFixed(4)}</div><div class="stat-label">Desv. Y Obs.</div></div><div class="stat-card" style="grid-column: span 2;"><div class="stat-value">${obs.rho.toFixed(4)}</div><div class="stat-label">Correlación Obs.</div></div>`;
+                const primerosXBiv = data.valores_x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                const primerosYBiv = data.valores_y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXBiv}<br><strong>Primeros 10 Y:</strong> ${primerosYBiv}</p>`;
+                break;
+            default:
+                html += '<p>No hay estadísticas disponibles.</p>';
+        }
+        html += '</div>';
+        html += `<div class="results-sequence">${primerosResultadosHtml}</div>`;
+        resultadosContainer.innerHTML = html;
+    }
+
+    function descargarCSV() {
+        if (!datosSimulacionActual || !nombreSimulacionActual) {
+            alert('Primero debes ejecutar una simulación.');
+            return;
+        }
+        let csvContent = '', fileName = `${nombreSimulacionActual}_simulacion.csv`;
+        switch (nombreSimulacionActual) {
+            case 'bernoulli': csvContent = 'Resultado\n' + datosSimulacionActual.resultados_individuales.join('\n'); break;
+            case 'binomial': csvContent = 'Numero_Exitos\n' + datosSimulacionActual.resultados_individuales.join('\n'); break;
+            case 'exponencial': case 'normal': csvContent = 'Valor\n' + datosSimulacionActual.valores.join('\n'); break;
+            case 'gibbs': case 'normal-bivariada':
+                const x_vals = datosSimulacionActual.x_samples || datosSimulacionActual.valores_x, y_vals = datosSimulacionActual.y_samples || datosSimulacionActual.valores_y;
+                csvContent = 'x,y\n' + x_vals.map((val, i) => `${val},${y_vals[i]}`).join('\n');
+                break;
+            case 'multinomial':
+                 const headers = ['Categoria', 'Frecuencia_Observada', 'Frecuencia_Esperada'];
+                 const dataRows = datosSimulacionActual.categorias.map((cat, i) => `${cat},${datosSimulacionActual.frecuencias_observadas[i]},${datosSimulacionActual.frecuencias_esperadas[i]}`);
+                 csvContent = headers.join(',') + '\n' + dataRows.join('\n');
+                 break;
+            default: alert('Descarga no implementada.'); return;
+        }
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // --- LÓGICA DE NAVEGACIÓN Y LIMPIEZA ---
+
+    function limpiarTodo() {
+        mainChart.innerHTML = '<div class="chart-placeholder">📈 Ajusta los parámetros y presiona "Simular" para generar la gráfica</div>';
+        secondaryChart.innerHTML = '';
+        secondaryChart.style.display = 'none';
+        if (nombreSimulacionActual !== 'multinomial') {
+             resultadosContainer.innerHTML = '<p>¡Aquí podrás observar los resultados de la simulación!</p>';
+        }
+        datosSimulacionActual = null;
+        nombreSimulacionActual = '';
+    }
 // Referencias a elementos del DOM
     const resultados = document.querySelector('.results-content');
     const grafica = document.getElementById('chart');
@@ -58,207 +207,186 @@
         'normal-bivariada': 'Distribucion Normal Bivariada'
       };
 
-      navItems.forEach(item => {
+    navItems.forEach(item => {
         item.addEventListener('click', function() {
-          // Remover clase active de todos los items
-          navItems.forEach(nav => nav.classList.remove('active'));
-          distributionContents.forEach(content => content.classList.remove('active'));
-
-          // Agregar clase active al item seleccionado
-          this.classList.add('active');
-          
-          // Mostrar el contenido correspondiente
-          const distribution = this.getAttribute('data-distribution');
-          const targetContent = document.getElementById(distribution);
-          if (targetContent) {
-            targetContent.classList.add('active');
-          }
-
-          // Actualizar título
-          panelTitle.textContent = titles[distribution] || 'Simulador de Densidades';
-
-          // limpiar gráfica y resultados
-          grafica.innerHTML = '<div class="chart-placeholder">📈 Ajusta los parámetros y presiona "Simular" para generar la gráfica</div>';
-          resultados.innerHTML = '¡Aquí podrás observar los resultados de la simulación!';
-        });
-      });
-
-      // Funcionalidad para cada distribución
-      Bernoulli();
-      Binomial();
-      Multinomial();
-      Exponential();
-      Normal();
-      Gibbs();
-      NormalBivariada();
-
-
-      // Funcionalidad de los botones de limpiar
-      const clearButtons = document.querySelectorAll('.btn-primary');
-      clearButtons.forEach(button => {
-        if (button.textContent === 'Limpiar') {
-          button.addEventListener('click', function() {
-            // Limpiar inputs y gráfica
-            const activeContent = document.querySelector('.distribution-content.active');
-            const inputs = activeContent.querySelectorAll('input');
-            inputs.forEach(input => {
-              input.value = input.getAttribute('value') || '';
-            });
-            grafica.innerHTML = '<div class="chart-placeholder">📈 Ajusta los parámetros y presiona "Simular" para generar la gráfica</div>';
-            resultados.innerHTML = '¡Aquí podrás observar los resultados de la simulación!';
-          });
-        }
-      });
+            const distribution = this.getAttribute('data-distribution');
+            navItems.forEach(nav => nav.classList.remove('active'));
+            distributionContents.forEach(content => content.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById(distribution).classList.add('active');
+            panelTitle.textContent = TITULOS[distribution] || 'Simulador de Densidades';
+            limpiarTodo();
     });
 
-    // Configuración para Bernoulli
-    function Bernoulli() {
-      const bernoulliContent = document.getElementById('bernoulli');
-      const simulateBtn = bernoulliContent.querySelector('.btn-primary');
-      
-      if (simulateBtn && simulateBtn.textContent === 'Simular') {
-        simulateBtn.addEventListener('click', async () => {
-          const numExp = parseInt(document.getElementById('bernoulli-n').value);
-          const probExito = parseFloat(document.getElementById('bernoulli-p').value);
+    document.querySelectorAll('.btn-secondary').forEach(button => {
+        button.addEventListener('click', function() {
+            const activeContent = document.querySelector('.distribution-content.active');
+            const inputs = activeContent.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => { input.value = input.defaultValue || input.getAttribute('value'); });
+            limpiarTodo();
+        });
+    });
 
-          if (!numExp || !probExito) {
-            alert('Por favor, completa todos los campos');
-            return;
-          }
+    downloadBtn.addEventListener('click', descargarCSV);
 
-          grafica.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+    // --- FUNCIONES DE SIMULACIÓN POR DISTRIBUCIÓN ---
 
-          try {
-            const response = await fetch("/binomial_puntual", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                num_experimentos: numExp,
-                probabilidad_exito: probExito
-              })
-            });
+    function setupBernoulli() {
+        const content = document.getElementById('bernoulli');
+        content.querySelector('.btn-primary').addEventListener('click', async () => {
+            const numExp = parseInt(document.getElementById('bernoulli-n').value);
+            const probExito = parseFloat(document.getElementById('bernoulli-p').value);
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+            try {
+                const response = await fetch("/binomial_puntual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, probabilidad_exito: probExito }) });
+                const result = await response.json();
+                datosSimulacionActual = result;
+                nombreSimulacionActual = 'bernoulli';
+                mostrarResultados(nombreSimulacionActual, result);
+                const trace = { x: result.datos.map(d => d.rango), y: result.datos.map(d => d.freq), type: 'bar', marker: { color: ['#6c5ce7', '#a29bfe'] } };
+                mainChart.innerHTML = '';
+                const layout = getGraphLayout(`Distribución Bernoulli (p=${probExito}, n=${numExp})`);
+                Plotly.newPlot(mainChart, [trace], layout, { responsive: true });
+            } catch (error) { mainChart.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>'; }
+        });
+    }
 
-            const result = await response.json();
-            mostrarResultados(result.resultados_individuales, result.exitos, result.fracasos);
+    function setupBinomial() {
+        const content = document.getElementById('binomial');
+        content.querySelector('.btn-primary').addEventListener('click', async () => {
+            const numExp = parseInt(document.getElementById('binomial-sims').value);
+            const p = parseFloat(document.getElementById('binomial-p').value);
+            const n = parseInt(document.getElementById('binomial-n').value);
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+            try {
+                const response = await fetch("/binomial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, probabilidad_exito: p, num_pruebas: n }) });
+                const result = await response.json();
+                datosSimulacionActual = result;
+                nombreSimulacionActual = 'binomial';
+                mostrarResultados(nombreSimulacionActual, result);
+                const traceSim = { x: result.datos.x, y: result.datos.y, type: 'bar', name: 'Simulación', marker: { color: '#6c5ce7' } };
+                mainChart.innerHTML = "";
+                const layout = getGraphLayout(`Distribución Binomial (n=${n}, p=${p}, sims=${numExp})`);
+                layout.xaxis.title = "Número de Éxitos";
+                layout.yaxis.title = "Frecuencia";
+                Plotly.newPlot(mainChart, [traceSim], layout, { responsive: true });
+            } catch (error) { mainChart.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>'; }
+        });
+    }
 
-            // Limpiar el área de la gráfica antes de dibujar
-            grafica.innerHTML = "";
+    function setupExponencial() {
+        const content = document.getElementById('exponencial');
+        content.querySelector('.btn-primary').addEventListener('click', async () => {
+            const numExp = parseInt(document.getElementById('exponencial-n').value);
+            const lambda = parseFloat(document.getElementById('exponencial-lambda').value);
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+            try {
+                const response = await fetch("/exponencial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, tasa: lambda }) });
+                const result = await response.json();
+                datosSimulacionActual = result;
+                nombreSimulacionActual = 'exponencial';
+                mostrarResultados(nombreSimulacionActual, result);
+                const hist = { x: result.valores, type: 'histogram', histnorm: 'probability density', name: 'Simulación', marker: { color: '#6c5ce7', opacity: 0.7 }};
+                const maxX = Math.max(...result.valores);
+                const xTeorico = Array.from({length: 101}, (_, i) => i * maxX / 100);
+                const yTeorico = xTeorico.map(x => lambda * Math.exp(-lambda * x));
+                const traceTeorico = { x: xTeorico, y: yTeorico, type: 'scatter', mode: 'lines', name: 'Teórica', line: { color: '#e74c3c', width: 2.5 }};
+                mainChart.innerHTML = "";
+                const layout = getGraphLayout(`Distribución Exponencial (λ=${lambda}, n=${numExp})`);
+                layout.bargap = 0.1;
+                layout.xaxis.title = "Valor";
+                layout.yaxis.title = "Densidad";
+                Plotly.newPlot(mainChart, [hist, traceTeorico], layout, { responsive: true });
+            } catch (error) { mainChart.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>'; }
+        });
+    }
 
-                // Crear el histograma con los datos recibidos
-                // Preparar datos para Plotly
-                const x = result.datos.map(d => d.rango);    // ["Éxito", "Fracaso"]
-                const y = result.datos.map(d => d.freq);     // [10, 90]
-
-                const trace = {
-                    x: x,
-                    y: y,
-                    type: 'bar',
+    function setupNormal() {
+        const content = document.getElementById('normal');
+        content.querySelector('.btn-primary').addEventListener('click', async () => {
+            const numExp = parseInt(document.getElementById('normal-n').value);
+            const mu = parseFloat(document.getElementById('normal-mu').value);
+            const sigma = parseFloat(document.getElementById('normal-sigma').value);
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+            try {
+                const response = await fetch("/normal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ num_experimentos: numExp, media: mu, desviacion_estandar: sigma }) });
+                const result = await response.json();
+                datosSimulacionActual = result;
+                nombreSimulacionActual = 'normal';
+                mostrarResultados(nombreSimulacionActual, result);
+                const hist = { x: result.valores, type: 'histogram', histnorm: 'probability density', name: 'Simulación', marker: { color: '#6c5ce7', opacity: 0.7 }};
+                const minX = Math.min(...result.valores), maxX = Math.max(...result.valores);
+                const xTeorico = Array.from({length: 201}, (_, i) => minX + i * (maxX-minX) / 200);
+                const yTeorico = xTeorico.map(x => (1 / (sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - mu) / sigma, 2)));
+                const traceTeorico = { x: xTeorico, y: yTeorico, type: 'scatter', mode: 'lines', name: 'Teórica', line: { color: '#e74c3c', width: 2.5 }};
+                mainChart.innerHTML = "";
+                const layout = getGraphLayout(`Distribución Normal (μ=${mu}, σ=${sigma}, n=${numExp})`);
+                layout.bargap = 0.1;
+                layout.xaxis.title = "Valor";
+                layout.yaxis.title = "Densidad";
+                Plotly.newPlot(mainChart, [hist, traceTeorico], layout, { responsive: true });
+            } catch (error) { mainChart.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>'; }
+        });
+    }
     
-                    marker: { color: ['#6c5ce7', '#e21c1cff'] }
-                };
-
-                const layout = {
-                    title: {
-                        text: `Distribución Bernoulli (p=${probExito}, n=${numExp})`,
-                        font: { size: 24 }
-                    },
-                    xaxis: {
-                        title: { text: "Resultados posibles", font: { size: 16, color: "black" } }
-                    },
-                    yaxis: {
-                        title: { text: "Frecuencia relativa", font: { size: 16, color: "black" } }
-                    },
-                };
-
-                Plotly.newPlot('chart', [trace], layout, {responsive: true});
-            
-          } catch (error) {
-            grafica.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>';
-            console.error('Error:', error);
-          }
+    function setupGibbs() {
+        const content = document.getElementById('gibbs');
+        content.querySelector('.btn-primary').addEventListener('click', async () => {
+            const params = { x_init: parseFloat(document.getElementById('gibbs-x-init').value), y_init: parseFloat(document.getElementById('gibbs-y-init').value), n_samples: parseInt(document.getElementById('gibbs-samples').value), burn_in: parseInt(document.getElementById('gibbs-burnin').value), x_bounds: [0.0, 3.0], y_bounds: [0.0, 2.0] };
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación 3D...</div>';
+            secondaryChart.style.display = 'none';
+            try {
+                const [samplesRes, surfaceRes] = await Promise.all([
+                    fetch("/sample", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) }),
+                    fetch("/target-function-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) })
+                ]);
+                const result = await samplesRes.json(), surfaceData = await surfaceRes.json();
+                datosSimulacionActual = result;
+                nombreSimulacionActual = 'gibbs';
+                mostrarResultados(nombreSimulacionActual, result);
+                const surface = { x: surfaceData.x_grid, y: surfaceData.y_grid, z: surfaceData.z_grid, type: 'surface', name: 'Función Objetivo', colorscale: 'Viridis', opacity: 0.7 };
+                const scatter = { x: result.x_samples, y: result.y_samples, z: new Array(result.x_samples.length).fill(0), mode: 'markers', type: 'scatter3d', name: 'Muestras', marker: { size: 2, color: '#e74c3c' } };
+                mainChart.innerHTML = '';
+                const layout = getGraphLayout(`Muestreo de Gibbs (n=${params.n_samples})`, true);
+                Plotly.newPlot(mainChart, [surface, scatter], layout, { responsive: true });
+            } catch(error) { mainChart.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>'; }
         });
-      }
     }
 
-    // Configuración para Binomial
-    function Binomial() {
-      const binomialContent = document.getElementById('binomial');
-      const simulateBtn = binomialContent.querySelector('.btn-primary');
-      
-      if (simulateBtn && simulateBtn.textContent === 'Simular') {
-        simulateBtn.addEventListener('click', async () => {
-          const numExp = parseInt(document.getElementById('binomial-sims').value);
-          const probExito = parseFloat(document.getElementById('binomial-p').value);
-          const numReps = parseInt(document.getElementById('binomial-n').value);
-
-          if (!numExp || !probExito || !numReps) {
-            alert('Por favor, completa todos los campos');
-            return;
-          }
-
-          grafica.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
-
-          try {
-            const response = await fetch("/binomial", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                num_experimentos: numExp,
-                probabilidad_exito: probExito,
-                num_pruebas: numReps
-              })
-            });
-
-            const result = await response.json();
-
-            
-            grafica.innerHTML = "";
-
-                // Crear el histograma con los datos recibidos
-                // 1. Graficar con Plotly
-                const trace = {
-                    x: result.datos.x,
-                    y: result.datos.y,
-                    type: "bar",
-                    marker: { color: "#6c5ce7" }
-                };
-
-                const layout = {
-                    title: {
-                        text: `Distribución Binomial (p=${probExito}, n=${numExp})`,
-                        font: { size: 24 }
-                    },
-                    xaxis: {
-                        title: { text: "Número de éxitos", font: { size: 16, color: "black" } }
-                    },
-                    yaxis: {
-                        title: { text: "Frecuencia relativa", font: { size: 16, color: "black" } }
-                    },
-                    bargap: 0.2
-                };
-
-                Plotly.newPlot("chart", [trace], layout, {responsive: true});
-
-            // Mostrar resultados
-            let html = `
-              <p><strong>Total de experimentos:</strong> ${result.total_experimentos}</p>
-              <p><strong>Total de éxitos:</strong> ${result.total_exitos}</p>
-              <p><strong>Total de fracasos:</strong> ${result.total_fracasos}</p>
-            `;
-
-            if (result.total_experimentos <= 100) {
-              html += `<p><strong>Resultados individuales:</strong> ${result.resultados_individuales.join(", ")}</p>`;
+    function setupNormalBivariada() {
+        const content = document.getElementById('normal-bivariada');
+        content.querySelector('.btn-primary').addEventListener('click', async () => {
+            const params = { num_experimentos: parseInt(document.getElementById('bivariada-n').value), mu_x: parseFloat(document.getElementById('bivariada-mu-x').value), mu_y: parseFloat(document.getElementById('bivariada-mu-y').value), sigma_x: parseFloat(document.getElementById('bivariada-sigma-x').value), sigma_y: parseFloat(document.getElementById('bivariada-sigma-y').value), rho: parseFloat(document.getElementById('bivariada-rho').value) };
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación 3D...</div>';
+            secondaryChart.style.display = 'block';
+            secondaryChart.innerHTML = '<div class="chart-placeholder">🔄 Generando gráfico 2D...</div>';
+            try {
+                const response = await fetch("/normal_bivariada", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) });
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+                datosSimulacionActual = result;
+                nombreSimulacionActual = 'normal-bivariada';
+                mostrarResultados(nombreSimulacionActual, result);
+                secondaryChart.innerHTML = '';
+                const trace2D = { x: result.valores_x, y: result.valores_y, mode: 'markers', type: 'scatter', name: 'Muestras 2D', marker: { color: '#6c5ce7', size: 4, opacity: 0.5 } };
+                const layout2D = getGraphLayout(`Dispersión 2D (n=${params.num_experimentos})`);
+                layout2D.xaxis.title = "X";
+                layout2D.yaxis.title = "Y";
+                Plotly.newPlot(secondaryChart, [trace2D], layout2D, { responsive: true });
+                mainChart.innerHTML = '';
+                const surface = { ...result.superficie_teorica, type: 'surface', name: 'Densidad Teórica', colorscale: 'Viridis', opacity: 0.8 };
+                const scatter3D = { x: result.valores_x, y: result.valores_y, z: new Array(result.valores_x.length).fill(0), mode: 'markers', type: 'scatter3d', name: 'Muestras', marker: { size: 2, color: '#e74c3c', opacity: 0.4 } };
+                const layout3D = getGraphLayout(`Normal Bivariada 3D (ρ=${params.rho})`, true);
+                Plotly.newPlot(mainChart, [surface, scatter3D], layout3D, { responsive: true });
+            } catch(error) {
+                mainChart.innerHTML = `<div class="chart-placeholder">❌ Error: ${error.message}</div>`;
+                secondaryChart.style.display = 'none';
             }
-
-            resultados.innerHTML = html;
-          } catch (error) {
-            grafica.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>';
-            console.error('Error:', error);
-          }
         });
-      }
     }
 
+    // --- CÓDIGO RESTAURADO DE MULTINOMIAL ---
+     
     
     
     // ------------------------------------------------------------
@@ -268,6 +396,7 @@
     let categoryIndex = 3;
     let categoryProbIndex = 3;
 
+    window.removeCategory= function(index) {
     function cambiarTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
@@ -323,7 +452,7 @@
       checkProbSum();
     }
 
-    function addCategoryProb() {
+    window.addCategoryProb= function() {
       const container = document.getElementById('categories-prob-container');
       const item = document.createElement('div');
       item.className = 'category-item';
@@ -352,7 +481,7 @@
       categoryProbIndex++;
     }
 
-    function removeCategoryProb(index) {
+    window.removeCategoryProb= function(index) {
       const items = document.querySelectorAll('#categories-prob-container .category-item');
       if (items.length <= 2) {
         alert('Debe haber al menos 2 categorías');
@@ -390,7 +519,7 @@
     }
   });
 
-    async function simularMultinomial() {
+    window.simularMultinomial= async function() {
       const n_experimentos = parseInt(document.getElementById('n_experimentos').value);
       const categorias = Array.from(document.querySelectorAll('.cat-name')).map(input => input.value);
       const probabilidades = Array.from(document.querySelectorAll('.cat-prob')).map(input => parseFloat(input.value));
@@ -511,7 +640,7 @@
       }
     });
 
-    async function calcularProbabilidad() {
+    window.calcularProbabilidad = async function() {
       const n_experimentos = parseInt(document.getElementById('n_exp_prob').value);
       const categorias = Array.from(document.querySelectorAll('.cat-name-prob')).map(input => input.value);
       const probabilidades = Array.from(document.querySelectorAll('.cat-prob-prob')).map(input => parseFloat(input.value));
@@ -673,7 +802,7 @@
       }
     }
 
-    async function verificarSimulacion() {
+    window.verificarSimulacion = async function() {
       if (!window.ultimoCalculo) {
         alert('Primero debes calcular una probabilidad');
         return;
@@ -769,6 +898,80 @@
 
     // Inicialización
     checkProbSum();
+
+    window.cambiarTab = function(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            document.getElementById(tabName).classList.add('active');
+            document.querySelector(`[onclick="cambiarTab('${tabName}')"]`).classList.add('active');
+            
+            
+        }
+
+      window.addCategory = function() {
+      const container = document.getElementById('categories-container');
+      const colors = ['🟡', '🟣', '🟤', '⚪', '⚫', '🟠'];
+      const emoji = colors[categoryIndex % colors.length];
+      
+      const item = document.createElement('div');
+      item.className = 'category-item';
+      item.setAttribute('data-index', categoryIndex);
+      item.innerHTML = `
+        <div class="category-header">
+          <span class="category-name">${emoji} Categoría ${categoryIndex + 1}</span>
+          <button class="remove-btn" onclick="removeCategory(${categoryIndex})">✕</button>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Nombre</label>
+            <input type="text" class="cat-name" value="Cat${categoryIndex + 1}">
+          </div>
+          <div class="input-group">
+            <label>Probabilidad</label>
+            <input type="number" class="cat-prob" value="0.1" min="0" max="1" step="0.01">
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+      categoryIndex++;
+      checkProbSum();
+    }
+
+    function getConcordanciaColor(concordancia) {
+            switch(concordancia) {
+                case 'excelente': return '#27ae60';
+                case 'buena': return '#f39c12';
+                case 'regular': return '#e74c3c';
+                default: return '#7f8c8d';
+            }
+        }
+
+    function getConcordanciaMessage(concordancia, errorPorcentual) {
+        switch(concordancia) {
+            case 'excelente':
+                return `<div style="background: #d5f4e6; padding: 10px; border-radius: 4px; margin-top: 10px; color: #27ae60;">✅ Excelente concordancia (${errorPorcentual.toFixed(2)}% de error)</div>`;
+            case 'buena':
+                return `<div style="background: #fef9e7; padding: 10px; border-radius: 4px; margin-top: 10px; color: #f39c12;">✅ Buena concordancia (${errorPorcentual.toFixed(2)}% de error)</div>`;
+            case 'regular':
+                return `<div style="background: #fdeaea; padding: 10px; border-radius: 4px; margin-top: 10px; color: #e74c3c;">⚠️ Concordancia regular. Considere aumentar simulaciones</div>`;
+            default:
+                return '';
+        }
+    }
+
+    // Inicializar todo
+    setupBernoulli();
+    setupBinomial();
+    setupExponencial();
+    setupNormal();
+    setupGibbs();
+    setupNormalBivariada();
+});
 
     // ------------------------------------------------------------
     // FIN DE MULTINOMIAL

@@ -72,6 +72,9 @@ class BinomialInput(BaseModel):
 async def binomial(data: BinomialInput):
     resultados = []
     
+    if data.num_pruebas > 10000 and data.num_experimentos > 1000:
+         raise HTTPException(status_code=400, detail="La combinación de ensayos y simulaciones es demasiado grande.")
+
     for _ in range(data.num_experimentos):
         exitos_en_prueba = 0
         for _ in range(data.num_pruebas):
@@ -81,19 +84,26 @@ async def binomial(data: BinomialInput):
     
     conteo_frecuencia = Counter(resultados)
     datos_respuesta = {
-        "x": list(conteo_frecuencia.keys()),
-        "y": list(conteo_frecuencia.values())
+        "x": sorted(list(conteo_frecuencia.keys())),
+        "y": [conteo_frecuencia[k] for k in sorted(conteo_frecuencia.keys())]
     }
     
-    total_exitos = sum(resultados)
-    total_fracasos = data.num_experimentos * data.num_pruebas - total_exitos
+    estadisticas_calculadas = {}
+    if resultados:
+        estadisticas_calculadas = {
+            "media": float(np.mean(resultados)),
+            "desviacion_estandar": float(np.std(resultados)),
+            "minimo": int(np.min(resultados)),
+            "maximo": int(np.max(resultados))
+        }
+    else:
+        estadisticas_calculadas = {"media": 0, "desviacion_estandar": 0, "minimo": 0, "maximo": 0}
     
     return {
         "datos": datos_respuesta,
         "resultados_individuales": resultados,
         "total_experimentos": data.num_experimentos,
-        "total_exitos": total_exitos,
-        "total_fracasos": total_fracasos
+        "estadisticas": estadisticas_calculadas
     }
 
 
@@ -362,29 +372,38 @@ class ExponencialInput(BaseModel):
 @simulador.post("/exponencial")
 async def exponencial(data: ExponencialInput):
     if data.tasa <= 0:
-        return {"error": "La tasa debe ser mayor que 0."}
+        raise HTTPException(status_code=400, detail="La tasa debe ser mayor que 0.")
     
+    # --- CÁLCULO ORIGINAL RESTAURADO ---
     valores = []
-    us = []
-    
     for _ in range(data.num_experimentos):
         u = random.random()
         x = -math.log(1 - u) / data.tasa
         valores.append(x)
-        us.append(u)
     
+    # --- ADICIÓN NECESARIA PARA ESTADÍSTICAS ---
+    estadisticas_calculadas = {}
+    if valores:
+        estadisticas_calculadas = {
+            "media": float(np.mean(valores)),
+            "desviacion_estandar": float(np.std(valores)),
+            "minimo": float(np.min(valores)),
+            "maximo": float(np.max(valores))
+        }
+    else:
+         estadisticas_calculadas = {"media": 0, "desviacion_estandar": 0, "minimo": 0, "maximo": 0}
+
     return {
         "valores": valores,
-        "us": us,
         "tasa": data.tasa,
         "total_experimentos": data.num_experimentos,
+        "estadisticas": estadisticas_calculadas
     }
 
 
 # =============================================================================
 # NORMAL
 # =============================================================================
-
 class NormalInput(BaseModel):
     num_experimentos: int
     media: float
@@ -394,10 +413,10 @@ class NormalInput(BaseModel):
 @simulador.post("/normal")
 async def normal(data: NormalInput):
     if data.desviacion_estandar <= 0:
-        return {"error": "La desviación estándar debe ser mayor que 0."}
+        raise HTTPException(status_code=400, detail="La desviación estándar debe ser mayor que 0.")
     
+    # --- CÁLCULO ORIGINAL RESTAURADO (Box-Muller) ---
     valores = []
-    
     for _ in range(data.num_experimentos):
         u1 = random.random()
         u2 = random.random()
@@ -405,13 +424,25 @@ async def normal(data: NormalInput):
         x = data.media + data.desviacion_estandar * z0
         valores.append(x)
     
+    # --- ADICIÓN NECESARIA PARA ESTADÍSTICAS ---
+    estadisticas_calculadas = {}
+    if valores:
+        estadisticas_calculadas = {
+            "media": float(np.mean(valores)),
+            "desviacion_estandar": float(np.std(valores)),
+            "minimo": float(np.min(valores)),
+            "maximo": float(np.max(valores))
+        }
+    else:
+        estadisticas_calculadas = {"media": 0, "desviacion_estandar": 0, "minimo": 0, "maximo": 0}
+
     return {
         "valores": valores,
         "media": data.media,
         "desviacion_estandar": data.desviacion_estandar,
-        "total_experimentos": data.num_experimentos
+        "total_experimentos": data.num_experimentos,
+        "estadisticas": estadisticas_calculadas
     }
-
 
 # =============================================================================
 # GIBBS SAMPLER
@@ -641,3 +672,7 @@ async def normal_bivariada(data: NormalBivariadaInput):
         }
     except Exception as e:
         return {"error": f"Error en la simulación: {str(e)}"}
+    
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(simulador)
