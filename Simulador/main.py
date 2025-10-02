@@ -767,8 +767,8 @@ class GibbsSampler:
             "std_x": float(np.std(final_x)),
             "std_y": float(np.std(final_y)),
             "correlation": float(np.corrcoef(final_x, final_y)[0, 1]),
-            "execution_time": end_time - start_time,
-            "total_samples": len(final_x)
+            "execution_time": float(end_time - start_time),
+            "total_samples": int(len(final_x))
         }
         
         print(f"Muestreo completado en {stats['execution_time']:.3f}s")

@@ -74,6 +74,11 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '<div class="stats-grid">';
         let primerosResultadosHtml = '';
 
+        const crearTarjeta = (valor, etiqueta) => {
+            const valorFormateado = (typeof valor === 'number') ? valor.toFixed(4) : 'N/A';
+            return `<div class="stat-card"><div class="stat-value">${valorFormateado}</div><div class="stat-label">${etiqueta}</div></div>`;
+        };
+
         switch (simName) {
             case 'bernoulli':
                 html += `<div class="stat-card"><div class="stat-value">${data.exitos}</div><div class="stat-label">Éxitos</div></div><div class="stat-card"><div class="stat-value">${data.fracasos}</div><div class="stat-label">Fracasos</div></div>`;
@@ -88,7 +93,6 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'gibbs':
     // CORRECCIÓN: Se accede a los objetos anidados de forma segura
     const stats_gibbs = data.statistics;
-    const samples_gibbs = data.samples;
 
     if (stats_gibbs) {
         // Se utiliza la función 'crearTarjeta' para mantener la consistencia y seguridad
@@ -99,16 +103,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // CORRECCIÓN: Se corrigió el error de variable (stat vs stats)
         // y se envolvió en la función helper
         html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card','')}</div>`;
-        html += crearTarjeta(stats_gibbs.total_samples, 'Muestras');
-        html += crearTarjeta(stats_gibbs.execution_time * 1000, 'Tiempo (ms)');
-        html += crearTarjeta(stats_gibbs.total_samples / stats_gibbs.execution_time, 'Muestras/seg');
-    }
-
-    if (samples_gibbs && samples_gibbs.x && samples_gibbs.y) {
-        const primerosX = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-        // CORRECCIÓN: Usar samples_gibbs.y para los resultados de Y
-        const primerosY = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-        primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosX}<br><strong>Primeros 10 Y:</strong> ${primerosY}</p>`;
     }
     break;
             case 'normal-bivariada':
@@ -138,9 +132,26 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'binomial': csvContent = 'Numero_Exitos\n' + datosSimulacionActual.resultados_individuales.join('\n'); break;
             case 'exponencial': case 'normal': csvContent = 'Valor\n' + datosSimulacionActual.valores.join('\n'); break;
             case 'gibbs': case 'normal-bivariada':
-                const x_vals = datosSimulacionActual.x_samples || datosSimulacionActual.valores_x, y_vals = datosSimulacionActual.y_samples || datosSimulacionActual.valores_y;
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Primero, intentamos obtener los datos de la estructura de Gibbs (anidados en 'samples').
+            // Si no existen, usamos la estructura de la normal bivariada ('valores_x').
+            const x_vals = (datosSimulacionActual.samples && datosSimulacionActual.samples.x) 
+                           ? datosSimulacionActual.samples.x 
+                           : datosSimulacionActual.valores_x;
+
+            const y_vals = (datosSimulacionActual.samples && datosSimulacionActual.samples.y) 
+                           ? datosSimulacionActual.samples.y 
+                           : datosSimulacionActual.valores_y;
+            
+            // Verificamos que realmente obtuvimos los arrays antes de procesarlos
+            if (x_vals && y_vals) {
                 csvContent = 'x,y\n' + x_vals.map((val, i) => `${val},${y_vals[i]}`).join('\n');
-                break;
+            } else {
+                alert('Error: No se encontraron datos de muestra para exportar.');
+                return; // Detenemos la función si no hay datos
+            }
+            // --- FIN DE LA CORRECCIÓN ---
+            break;
             case 'multinomial':
                  const headers = ['Categoria', 'Frecuencia_Observada', 'Frecuencia_Esperada'];
                  const dataRows = datosSimulacionActual.categorias.map((cat, i) => `${cat},${datosSimulacionActual.frecuencias_observadas[i]},${datosSimulacionActual.frecuencias_esperadas[i]}`);
@@ -447,7 +458,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     nombreSimulacionActual = 'gibbs';
                     showStatus(`✅ Muestreo completado en ${result.execution_time.toFixed(3)}s.`, 'success');
                     
-                    mostrarResultados('gibbs', result.statistics);
+                    mostrarResultados('gibbs', result);
+                    // 1. Se obtiene el objeto que contiene las listas de muestras
+                    const samples_gibbs = result.plot_data; 
+
+                    // 2. Se comprueba que las muestras existan para evitar errores
+                    if (samples_gibbs && samples_gibbs.x) { 
+                        
+                        // 3. Se extraen los primeros 10 elementos del arreglo 'x'
+                        const primerosX = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                        
+                        // 4. Se extraen los primeros 10 elementos del arreglo 'y'
+                        const primerosY = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                        
+                        // 5. Se construye el HTML para mostrar los resultados
+                        primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosX}<br><strong>Primeros 10 Y:</strong> ${primerosY}</p>`;
+                    }
                     const plotData = result.plot_data;
                     
                     Plotly.newPlot(secondaryChart, [plotData.scatter_2d], getGraphLayout(plotData.layout_2d.title + ` (n=${requestData.n_samples})`), { responsive: true });
