@@ -103,6 +103,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // CORRECCIÓN: Se corrigió el error de variable (stat vs stats)
         // y se envolvió en la función helper
         html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card','')}</div>`;
+        // 3. Acceder al objeto anidado 'samples' para los resultados individuales
+    const samples = data.samples;
+
+    // 4. Comprobar si las muestras existen y obtener los primeros 10 resultados
+    if (samples && samples.x && samples.y) {
+        const primerosXGibbs = samples.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+        const primerosYGibbs = samples.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+        primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXGibbs}<br><strong>Primeros 10 Y:</strong> ${primerosYGibbs}</p>`;
+    }
     }
     break;
             case 'normal-bivariada':
@@ -459,21 +468,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     showStatus(`✅ Muestreo completado en ${result.execution_time.toFixed(3)}s.`, 'success');
                     
                     mostrarResultados('gibbs', result);
-                    // 1. Se obtiene el objeto que contiene las listas de muestras
-                    const samples_gibbs = result.plot_data; 
-
-                    // 2. Se comprueba que las muestras existan para evitar errores
-                    if (samples_gibbs && samples_gibbs.x) { 
-                        
-                        // 3. Se extraen los primeros 10 elementos del arreglo 'x'
-                        const primerosX = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                        
-                        // 4. Se extraen los primeros 10 elementos del arreglo 'y'
-                        const primerosY = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                        
-                        // 5. Se construye el HTML para mostrar los resultados
-                        primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosX}<br><strong>Primeros 10 Y:</strong> ${primerosY}</p>`;
-                    }
                     const plotData = result.plot_data;
                     
                     Plotly.newPlot(secondaryChart, [plotData.scatter_2d], getGraphLayout(plotData.layout_2d.title + ` (n=${requestData.n_samples})`), { responsive: true });
