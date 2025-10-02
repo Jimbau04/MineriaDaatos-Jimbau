@@ -1,8 +1,9 @@
 // CÓDIGO CORREGIDO Y UNIFICADO EN UN SOLO BLOQUE DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Referencias a elementos del DOM (declaradas una sola vez)
+    // Referencias a elementos del DOM
     const mainChart = document.getElementById('chart-main');
     const secondaryChart = document.getElementById('chart-secondary');
+    const chartsContainer = document.getElementById('charts-container');
     const resultadosContainer = document.getElementById('results-content-area');
     const panelTitle = document.getElementById('panelTitle');
     const navItems = document.querySelectorAll('.nav-item');
@@ -73,6 +74,11 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '<div class="stats-grid">';
         let primerosResultadosHtml = '';
 
+        const crearTarjeta = (valor, etiqueta) => {
+        const valorFormateado = (typeof valor === 'number') ? valor.toFixed(4) : 'N/A';
+        return `<div class="stat-card"><div class="stat-value">${valorFormateado}</div><div class="stat-label">${etiqueta}</div></div>`;
+        };
+
         switch (simName) {
             case 'bernoulli':
                 html += `<div class="stat-card"><div class="stat-value">${data.exitos}</div><div class="stat-label">Éxitos</div></div><div class="stat-card"><div class="stat-value">${data.fracasos}</div><div class="stat-label">Fracasos</div></div>`;
@@ -85,11 +91,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 primerosResultadosHtml = `<p><strong>Primeros 10 resultados:</strong> ${resultados.slice(0, 10).map(v => v.toFixed(3)).join(", ")}</p>`;
                 break;
             case 'gibbs':
-                 html += `<div class="stat-card"><div class="stat-value">${data.mean_x.toFixed(4)}</div><div class="stat-label">Media X</div></div><div class="stat-card"><div class="stat-value">${data.std_x.toFixed(4)}</div><div class="stat-label">Desv. Std X</div></div><div class="stat-card"><div class="stat-value">${data.mean_y.toFixed(4)}</div><div class="stat-label">Media Y</div></div><div class="stat-card"><div class="stat-value">${data.std_y.toFixed(4)}</div><div class="stat-label">Desv. Std Y</div></div><div class="stat-card" style="grid-column: span 2;"><div class="stat-value">${data.correlation.toFixed(4)}</div><div class="stat-label">Correlación</div></div>`;
-                const primerosXGibbs = data.x_samples.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                const primerosYGibbs = data.y_samples.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+            // --- CORRECCIÓN CLAVE: Acceder a los datos anidados correctamente ---
+            const stats_gibbs = data.statistics; // Los datos de estadísticas están en data.statistics
+            if (stats_gibbs) {
+                html += crearTarjeta(stats_gibbs.mean_x, 'Media X');
+                html += crearTarjeta(stats_gibbs.mean_y, 'Media Y');
+                html += crearTarjeta(stats_gibbs.std_x, 'Desv. Std X');
+                html += crearTarjeta(stats_gibbs.std_y, 'Desv. Std Y');
+                html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card', '')}</div>`;
+            }
+            
+            const samples_gibbs = data.samples; // Las muestras están en data.samples
+            if (samples_gibbs && samples_gibbs.x) {
+                const primerosXGibbs = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+                const primerosYGibbs = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
                 primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXGibbs}<br><strong>Primeros 10 Y:</strong> ${primerosYGibbs}</p>`;
-                break;
+            }
+            break;
             case 'normal-bivariada':
                 const obs = data.estadisticas_observadas;
                 html += `<div class="stat-card"><div class="stat-value">${obs.media_x.toFixed(4)}</div><div class="stat-label">Media X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_x.toFixed(4)}</div><div class="stat-label">Desv. X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.media_y.toFixed(4)}</div><div class="stat-label">Media Y Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_y.toFixed(4)}</div><div class="stat-label">Desv. Y Obs.</div></div><div class="stat-card" style="grid-column: span 2;"><div class="stat-value">${obs.rho.toFixed(4)}</div><div class="stat-label">Correlación Obs.</div></div>`;
@@ -100,9 +118,13 @@ document.addEventListener('DOMContentLoaded', function() {
             default:
                 html += '<p>No hay estadísticas disponibles.</p>';
         }
-        html += '</div>';
-        html += `<div class="results-sequence">${primerosResultadosHtml}</div>`;
-        resultadosContainer.innerHTML = html;
+         if (html.length < 25 && simName !== 'bernoulli') {
+        html += '<p>Estadísticas no disponibles. Revisa la consola para más detalles.</p>';
+    }
+
+    html += '</div>';
+    html += `<div class="results-sequence">${primerosResultadosHtml}</div>`;
+    resultadosContainer.innerHTML = html;
     }
 
     function descargarCSV() {
@@ -136,11 +158,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- LÓGICA DE NAVEGACIÓN Y LIMPIEZA ---
+    function actualizarVisibilidadPaneles(distribution) {
+        const esPestanaEspecial = distribution === 'multinomial';
+        resultsPanelContainer.style.display = esPestanaEspecial ? 'none' : 'block';
+        chartsContainer.style.display = esPestanaEspecial ? 'none' : 'block';
+    }
 
     function limpiarTodo() {
         mainChart.innerHTML = '<div class="chart-placeholder">📈 Ajusta los parámetros y presiona "Simular" para generar la gráfica</div>';
         secondaryChart.innerHTML = '';
         secondaryChart.style.display = 'none';
+        
+        const gibbsStatus = document.getElementById('gibbs-status');
+        if (gibbsStatus) gibbsStatus.innerHTML = '';
+
         if (nombreSimulacionActual !== 'multinomial') {
              resultadosContainer.innerHTML = '<p>¡Aquí podrás observar los resultados de la simulación!</p>';
         }
@@ -156,16 +187,15 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.add('active');
             document.getElementById(distribution).classList.add('active');
             panelTitle.textContent = TITULOS[distribution] || 'Simulador de Densidades';
+            actualizarVisibilidadPaneles(distribution);
             limpiarTodo();
         });
     });
 
     document.querySelectorAll('.btn-secondary').forEach(button => {
         button.addEventListener('click', function() {
-            const activeContent = document.querySelector('.distribution-content.active');
-            const inputs = activeContent.querySelectorAll('input[type="number"]');
-            inputs.forEach(input => { input.value = input.defaultValue || input.getAttribute('value'); });
             limpiarTodo();
+            // Restablecer valores por defecto (opcional, si los tienes)
         });
     });
 
@@ -273,26 +303,130 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function setupGibbs() {
         const content = document.getElementById('gibbs');
-        content.querySelector('.btn-primary').addEventListener('click', async () => {
-            const params = { x_init: parseFloat(document.getElementById('gibbs-x-init').value), y_init: parseFloat(document.getElementById('gibbs-y-init').value), n_samples: parseInt(document.getElementById('gibbs-samples').value), burn_in: parseInt(document.getElementById('gibbs-burnin').value), x_bounds: [0.0, 3.0], y_bounds: [0.0, 2.0] };
-            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación 3D...</div>';
-            secondaryChart.style.display = 'none';
+        const select = document.getElementById('gibbs-function-select');
+        const validateBtn = document.getElementById('gibbs-validate-btn');
+        const sampleBtn = document.getElementById('gibbs-sample-btn');
+        const statusDiv = document.getElementById('gibbs-status');
+
+        const updateBoundsDisplay = () => {
+            const selectedIndex = select.value;
+            if (gibbsExamples[selectedIndex]) {
+                const bounds = gibbsExamples[selectedIndex].bounds;
+                document.getElementById('gibbs-bound-xmin').textContent = bounds.x_min;
+                document.getElementById('gibbs-bound-xmax').textContent = bounds.x_max;
+                document.getElementById('gibbs-bound-ymin').textContent = bounds.y_min;
+                document.getElementById('gibbs-bound-ymax').textContent = bounds.y_max;
+            }
+        };
+
+        const loadGibbsExamples = async () => {
             try {
-                const [samplesRes, surfaceRes] = await Promise.all([
-                    fetch("/sample", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) }),
-                    fetch("/target-function-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) })
-                ]);
-                const result = await samplesRes.json(), surfaceData = await surfaceRes.json();
-                datosSimulacionActual = result;
-                nombreSimulacionActual = 'gibbs';
-                mostrarResultados(nombreSimulacionActual, result);
-                const surface = { x: surfaceData.x_grid, y: surfaceData.y_grid, z: surfaceData.z_grid, type: 'surface', name: 'Función Objetivo', colorscale: 'Viridis', opacity: 0.7 };
-                const scatter = { x: result.x_samples, y: result.y_samples, z: new Array(result.x_samples.length).fill(0), mode: 'markers', type: 'scatter3d', name: 'Muestras', marker: { size: 2, color: '#e74c3c' } };
-                mainChart.innerHTML = '';
-                const layout = getGraphLayout(`Muestreo de Gibbs (n=${params.n_samples})`, true);
-                Plotly.newPlot(mainChart, [surface, scatter], layout, { responsive: true });
-            } catch(error) { mainChart.innerHTML = '<div class="chart-placeholder">❌ Error al generar la simulación</div>'; }
+                const response = await fetch(`/examples`);
+                if (!response.ok) throw new Error('No se pudo conectar al servidor para obtener ejemplos.');
+                const data = await response.json();
+                gibbsExamples = data.examples;
+                select.innerHTML = '';
+                gibbsExamples.forEach((ex, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = ex.expression;
+                    select.appendChild(option);
+                });
+                updateBoundsDisplay();
+            } catch (error) {
+                showStatus(`❌ ${error.message}`, 'error');
+            }
+        };
+
+        select.addEventListener('change', () => {
+            updateBoundsDisplay();
+            sampleBtn.disabled = true;
+            statusDiv.innerHTML = '';
         });
+
+        function getFormData() {
+            const selectedIndex = select.value;
+            const selectedExample = gibbsExamples[selectedIndex];
+            return {
+                expression: selectedExample.expression,
+                x_min: selectedExample.bounds.x_min,
+                x_max: selectedExample.bounds.x_max,
+                y_min: selectedExample.bounds.y_min,
+                y_max: selectedExample.bounds.y_max,
+                x_initial: document.getElementById('gibbs-x-initial').value ? parseFloat(document.getElementById('gibbs-x-initial').value) : null,
+                y_initial: document.getElementById('gibbs-y-initial').value ? parseFloat(document.getElementById('gibbs-y-initial').value) : null,
+                n_samples: parseInt(document.getElementById('gibbs-n-samples').value),
+                burn_in: parseInt(document.getElementById('gibbs-burn-in').value)
+            };
+        }
+
+        function showStatus(message, type) {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        validateBtn.addEventListener('click', async () => {
+            const requestData = getFormData();
+            try {
+                showStatus('🔍 Validando función...', 'info');
+                const response = await fetch(`/validate`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData), mode: 'cors'
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+                if (result.is_valid) {
+                    showStatus('✅ Función válida.', 'success');
+                    sampleBtn.disabled = false;
+                } else {
+                    const errors = result.errors.join('<br>• ');
+                    showStatus(`❌ Errores de validación:<br>• ${errors}`, 'error');
+                    sampleBtn.disabled = true;
+                }
+            } catch (error) {
+                showStatus(`❌ Error de conexión: ${error.message}`, 'error');
+                sampleBtn.disabled = true;
+            }
+        });
+
+        sampleBtn.addEventListener('click', async () => {
+            const requestData = getFormData();
+            mainChart.innerHTML = '<div class="chart-placeholder">🔄 Generando simulación...</div>';
+            secondaryChart.style.display = 'block';
+            secondaryChart.innerHTML = '';
+            resultadosContainer.innerHTML = '';
+            showStatus('🚀 Ejecutando muestreador...', 'info');
+            try {
+                const response = await fetch(`/sample`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData), mode: 'cors'
+                });
+                if (!response.ok) { const txt = await response.text(); throw new Error(txt); }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    datosSimulacionActual = result;
+                    nombreSimulacionActual = 'gibbs';
+                    showStatus(`✅ Muestreo completado en ${result.execution_time.toFixed(3)}s.`, 'success');
+                    
+                    mostrarResultados('gibbs', result.statistics);
+                    const plotData = result.plot_data;
+                    
+                    Plotly.newPlot(secondaryChart, [plotData.scatter_2d], getGraphLayout(plotData.layout_2d.title + ` (n=${requestData.n_samples})`), { responsive: true });
+                    mainChart.innerHTML = '';
+                    Plotly.newPlot(mainChart, [plotData.histogram_3d], getGraphLayout(plotData.layout_3d.title, true), { responsive: true });
+                } else {
+                    const errors = result.validation?.errors?.join('<br>• ') || 'Error desconocido';
+                    showStatus(`❌ Error durante el muestreo:<br>• ${errors}`, 'error');
+                }
+            } catch (error) {
+                mainChart.innerHTML = `<div class="chart-placeholder">❌ Error: ${error.message}</div>`;
+                secondaryChart.style.display = 'none';
+                showStatus(`❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        loadGibbsExamples();
     }
 
     function setupNormalBivariada() {
