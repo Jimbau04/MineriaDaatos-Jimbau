@@ -220,6 +220,46 @@
                   </div>
                 </div>
               </div>
+              <div class="category-item" data-index="1">
+                <div class="category-header">
+                  <span class="category-name">Categoría 2</span>
+                  <button class="remove-btn" onclick="removeCategoryProb(0)">✕</button>
+                </div>
+                <div class="input-row">
+                  <div class="input-group">
+                    <label>Nombre</label>
+                    <input type="text" class="cat-name-prob" value="A">
+                  </div>
+                  <div class="input-group">
+                    <label>Probabilidad (p)</label>
+                    <input type="number" class="cat-prob-prob" value="0.5" min="0" max="1" step="0.01">
+                  </div>
+                  <div class="input-group">
+                    <label>Frecuencia Deseada (k)</label>
+                    <input type="number" class="cat-freq-prob" value="5" min="0">
+                  </div>
+                </div>
+              </div>
+              <div class="category-item" data-index="2">
+                <div class="category-header">
+                  <span class="category-name">Categoría 2</span>
+                  <button class="remove-btn" onclick="removeCategoryProb(0)">✕</button>
+                </div>
+                <div class="input-row">
+                  <div class="input-group">
+                    <label>Nombre</label>
+                    <input type="text" class="cat-name-prob" value="A">
+                  </div>
+                  <div class="input-group">
+                    <label>Probabilidad (p)</label>
+                    <input type="number" class="cat-prob-prob" value="0.2" min="0" max="1" step="0.01">
+                  </div>
+                  <div class="input-group">
+                    <label>Frecuencia Deseada (k)</label>
+                    <input type="number" class="cat-freq-prob" value="2" min="0">
+                  </div>
+                </div>
+              </div>
             </div>
             <div id="prob-sum-warning-2" class="prob-warning" style="display:none"></div>
             <button class="add-category-btn" onclick="addCategoryProb()">+ Añadir Categoría</button>
@@ -234,9 +274,18 @@
         </div>
 
 
+        <div class="panel results-panel">
+          <div class="panel-title">🎯 Resultados del Cálculo</div>
+          <div id="placeholder-prob" class="placeholder">
+            Configure los parámetros y presione "Calcular Probabilidad"
+          </div>
+          <div id="resultados-prob" class="hidden"></div>
         </div>
+      </div>
+    </div>
         </div>
-        </div>
+      
+    
 
         <!-- Contenido para Exponencial -->
         <div class="distribution-content" id="exponencial">

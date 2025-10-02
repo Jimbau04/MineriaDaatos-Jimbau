@@ -18,48 +18,7 @@
 
     
 
-    function cambiarTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            document.getElementById(tabName).classList.add('active');
-            document.querySelector(`[onclick="cambiarTab('${tabName}')"]`).classList.add('active');
-            
-            
-        }
-
-        function addCategory() {
-      const container = document.getElementById('categories-container');
-      const colors = ['🟡', '🟣', '🟤', '⚪', '⚫', '🟠'];
-      const emoji = colors[categoryIndex % colors.length];
-      
-      const item = document.createElement('div');
-      item.className = 'category-item';
-      item.setAttribute('data-index', categoryIndex);
-      item.innerHTML = `
-        <div class="category-header">
-          <span class="category-name">${emoji} Categoría ${categoryIndex + 1}</span>
-          <button class="remove-btn" onclick="removeCategory(${categoryIndex})">✕</button>
-        </div>
-        <div class="input-row">
-          <div class="input-group">
-            <label>Nombre</label>
-            <input type="text" class="cat-name" value="Cat${categoryIndex + 1}">
-          </div>
-          <div class="input-group">
-            <label>Probabilidad</label>
-            <input type="number" class="cat-prob" value="0.1" min="0" max="1" step="0.01">
-          </div>
-        </div>
-      `;
-      container.appendChild(item);
-      categoryIndex++;
-      checkProbSum();
-    }
+    
 
     function getConcordanciaColor(concordancia) {
             switch(concordancia) {
@@ -300,12 +259,57 @@
       }
     }
 
-    // Configuración para Multinomial 
+    
+    
+    // ------------------------------------------------------------
+    // inicio DE MULTINOMIAL
+    // ------------------------------------------------------------
     
     let categoryIndex = 3;
     let categoryProbIndex = 3;
 
-    
+    function cambiarTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            document.getElementById(tabName).classList.add('active');
+            document.querySelector(`[onclick="cambiarTab('${tabName}')"]`).classList.add('active');
+            checkProbSum();
+            
+        }
+
+        function addCategory() {
+      const container = document.getElementById('categories-container');
+      const colors = ['🟡', '🟣', '🟤', '⚪', '⚫', '🟠'];
+      const emoji = colors[categoryIndex % colors.length];
+      
+      const item = document.createElement('div');
+      item.className = 'category-item';
+      item.setAttribute('data-index', categoryIndex);
+      item.innerHTML = `
+        <div class="category-header">
+          <span class="category-name">${emoji} Categoría ${categoryIndex + 1}</span>
+          <button class="remove-btn" onclick="removeCategory(${categoryIndex})">✕</button>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Nombre</label>
+            <input type="text" class="cat-name" value="Cat${categoryIndex + 1}">
+          </div>
+          <div class="input-group">
+            <label>Probabilidad</label>
+            <input type="number" class="cat-prob" value="0.1" min="0" max="1" step="0.01">
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+      categoryIndex++;
+      checkProbSum();
+    }
     
 
     function removeCategory(index) {
@@ -330,15 +334,15 @@
           <button class="remove-btn" onclick="removeCategoryProb(${categoryProbIndex})">✕</button>
         </div>
         <div class="input-row">
-          <div class="input-wrapper">
+          <div class="input-group">
             <label>Nombre</label>
             <input type="text" class="cat-name-prob" value="Cat${categoryProbIndex + 1}">
           </div>
-          <div class="input-wrapper">
+          <div class="input-group">
             <label>Probabilidad (p)</label>
             <input type="number" class="cat-prob-prob" value="0.1" min="0" max="1" step="0.01">
           </div>
-          <div class="input-wrapper">
+          <div class="input-group">
             <label>Frecuencia Deseada (k)</label>
             <input type="number" class="cat-freq-prob" value="1" min="0">
           </div>
@@ -358,24 +362,33 @@
       if (item) item.remove();
     }
 
-    function checkProbSum() {
-      const probs = Array.from(document.querySelectorAll('.cat-prob')).map(input => parseFloat(input.value) || 0);
-      const sum = probs.reduce((a, b) => a + b, 0);
-      const warning = document.getElementById('prob-sum-warning');
-      
-      if (Math.abs(sum - 1) > 0.01) {
-        warning.style.display = 'block';
-        warning.textContent = `⚠️ Suma actual: ${sum.toFixed(3)}. Las probabilidades deben sumar 1.0`;
-      } else {
-        warning.style.display = 'none';
+    const validations = {
+  'cat-prob': 'prob-sum-warning',
+  'cat-prob-prob': 'prob-prob-sum-warning',
+  'cat-freq-prob': 'freq-prob-sum-warning'
+};
+
+  function checkGenericSum(className, warningId) {
+    const probs = Array.from(document.querySelectorAll(`.${className}`))
+      .map(input => parseFloat(input.value) || 0);
+    const sum = probs.reduce((a, b) => a + b, 0);
+    const warning = document.getElementById(warningId);
+
+    if (Math.abs(sum - 1) > 0.01) {
+      warning.style.display = 'block';
+      warning.textContent = `⚠️ Suma actual: ${sum.toFixed(3)}. Las probabilidades deben sumar 1.0`;
+    } else {
+      warning.style.display = 'none';
+    }
+  }
+
+  document.addEventListener('input', function(e) {
+    for (let className in validations) {
+      if (e.target.classList.contains(className)) {
+        checkGenericSum(className, validations[className]);
       }
     }
-
-    document.addEventListener('input', function(e) {
-      if (e.target.classList.contains('cat-prob')) {
-        checkProbSum();
-      }
-    });
+  });
 
     async function simularMultinomial() {
       const n_experimentos = parseInt(document.getElementById('n_experimentos').value);
@@ -492,6 +505,12 @@
       }
     }
 
+    document.addEventListener('input', function(e) {
+      if (e.target.classList.contains('cat-prob')) {
+        checkProbSum();
+      }
+    });
+
     async function calcularProbabilidad() {
       const n_experimentos = parseInt(document.getElementById('n_exp_prob').value);
       const categorias = Array.from(document.querySelectorAll('.cat-name-prob')).map(input => input.value);
@@ -538,10 +557,6 @@
                 Aproximadamente 1 en ${data.interpretacion.uno_en.toLocaleString()} casos
               </div>
             </div>
-          </div>
-
-          <div class="chart-container">
-            <div id="chart-prob" style="width: 100%; height: 350px;"></div>
           </div>
 
           <div class="explanation-box">
@@ -650,7 +665,7 @@
           yaxis: { title: 'Frecuencia' }
         };
 
-        Plotly.newPlot('chart-prob', [trace1, trace2], layout, { responsive: true });
+        // Plotly.newPlot('chart-prob', [trace1, trace2], layout, { responsive: true });
 
       } catch (error) {
         console.error('Error:', error);
@@ -754,6 +769,10 @@
 
     // Inicialización
     checkProbSum();
+
+    // ------------------------------------------------------------
+    // FIN DE MULTINOMIAL
+    // ------------------------------------------------------------
   
 
     // Configuración para Exponencial
