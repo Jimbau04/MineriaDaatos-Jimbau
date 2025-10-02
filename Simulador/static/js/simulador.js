@@ -331,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function() {
      let categoryIndex = 3;
     let categoryProbIndex = 3;
 
-    function removeCategory(index) {
+    window.removeCategory= function(index) {
       const items = document.querySelectorAll('#categories-container .category-item');
       if (items.length <= 2) {
         alert('Debe haber al menos 2 categorías');
@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
       checkProbSum();
     }
 
-    function addCategoryProb() {
+    window.addCategoryProb= function() {
       const container = document.getElementById('categories-prob-container');
       const item = document.createElement('div');
       item.className = 'category-item';
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', function() {
       categoryProbIndex++;
     }
 
-    function removeCategoryProb(index) {
+    window.removeCategoryProb= function(index) {
       const items = document.querySelectorAll('#categories-prob-container .category-item');
       if (items.length <= 2) {
         alert('Debe haber al menos 2 categorías');
@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    async function simularMultinomial() {
+    window.simularMultinomial= async function() {
       const n_experimentos = parseInt(document.getElementById('n_experimentos').value);
       const categorias = Array.from(document.querySelectorAll('.cat-name')).map(input => input.value);
       const probabilidades = Array.from(document.querySelectorAll('.cat-prob')).map(input => parseFloat(input.value));
@@ -515,7 +515,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    async function calcularProbabilidad() {
+    window.calcularProbabilidad = async function() {
       const n_experimentos = parseInt(document.getElementById('n_exp_prob').value);
       const categorias = Array.from(document.querySelectorAll('.cat-name-prob')).map(input => input.value);
       const probabilidades = Array.from(document.querySelectorAll('.cat-prob-prob')).map(input => parseFloat(input.value));
@@ -681,7 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    async function verificarSimulacion() {
+    window.verificarSimulacion = async function() {
       if (!window.ultimoCalculo) {
         alert('Primero debes calcular una probabilidad');
         return;
@@ -778,7 +778,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicialización
     checkProbSum();
 
-    function cambiarTab(tabName) {
+    window.cambiarTab = function(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -792,7 +792,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
         }
 
-        function addCategory() {
+      window.addCategory = function() {
       const container = document.getElementById('categories-container');
       const colors = ['🟡', '🟣', '🟤', '⚪', '⚫', '🟠'];
       const emoji = colors[categoryIndex % colors.length];
