@@ -74,11 +74,6 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '<div class="stats-grid">';
         let primerosResultadosHtml = '';
 
-        const crearTarjeta = (valor, etiqueta) => {
-        const valorFormateado = (typeof valor === 'number') ? valor.toFixed(4) : 'N/A';
-        return `<div class="stat-card"><div class="stat-value">${valorFormateado}</div><div class="stat-label">${etiqueta}</div></div>`;
-        };
-
         switch (simName) {
             case 'bernoulli':
                 html += `<div class="stat-card"><div class="stat-value">${data.exitos}</div><div class="stat-label">Éxitos</div></div><div class="stat-card"><div class="stat-value">${data.fracasos}</div><div class="stat-label">Fracasos</div></div>`;
@@ -91,23 +86,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 primerosResultadosHtml = `<p><strong>Primeros 10 resultados:</strong> ${resultados.slice(0, 10).map(v => v.toFixed(3)).join(", ")}</p>`;
                 break;
             case 'gibbs':
-            // --- CORRECCIÓN CLAVE: Acceder a los datos anidados correctamente ---
-            const stats_gibbs = data.statistics; // Los datos de estadísticas están en data.statistics
-            if (stats_gibbs) {
-                html += crearTarjeta(stats_gibbs.mean_x, 'Media X');
-                html += crearTarjeta(stats_gibbs.mean_y, 'Media Y');
-                html += crearTarjeta(stats_gibbs.std_x, 'Desv. Std X');
-                html += crearTarjeta(stats_gibbs.std_y, 'Desv. Std Y');
-                html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card', '')}</div>`;
-            }
-            
-            const samples_gibbs = data.samples; // Las muestras están en data.samples
-            if (samples_gibbs && samples_gibbs.x) {
-                const primerosXGibbs = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                const primerosYGibbs = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXGibbs}<br><strong>Primeros 10 Y:</strong> ${primerosYGibbs}</p>`;
-            }
-            break;
+    // CORRECCIÓN: Se accede a los objetos anidados de forma segura
+    const stats_gibbs = data.statistics;
+    const samples_gibbs = data.samples;
+
+    if (stats_gibbs) {
+        // Se utiliza la función 'crearTarjeta' para mantener la consistencia y seguridad
+        html += crearTarjeta(stats_gibbs.mean_x, 'Media X');
+        html += crearTarjeta(stats_gibbs.mean_y, 'Media Y');
+        html += crearTarjeta(stats_gibbs.std_x, 'Desv. Std X');
+        html += crearTarjeta(stats_gibbs.std_y, 'Desv. Std Y');
+        // CORRECCIÓN: Se corrigió el error de variable (stat vs stats)
+        // y se envolvió en la función helper
+        html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card','')}</div>`;
+        html += crearTarjeta(stats_gibbs.total_samples, 'Muestras');
+        html += crearTarjeta(stats_gibbs.execution_time * 1000, 'Tiempo (ms)');
+        html += crearTarjeta(stats_gibbs.total_samples / stats_gibbs.execution_time, 'Muestras/seg');
+    }
+
+    if (samples_gibbs && samples_gibbs.x && samples_gibbs.y) {
+        const primerosX = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+        // CORRECCIÓN: Usar samples_gibbs.y para los resultados de Y
+        const primerosY = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+        primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosX}<br><strong>Primeros 10 Y:</strong> ${primerosY}</p>`;
+    }
+    break;
             case 'normal-bivariada':
                 const obs = data.estadisticas_observadas;
                 html += `<div class="stat-card"><div class="stat-value">${obs.media_x.toFixed(4)}</div><div class="stat-label">Media X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_x.toFixed(4)}</div><div class="stat-label">Desv. X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.media_y.toFixed(4)}</div><div class="stat-label">Media Y Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_y.toFixed(4)}</div><div class="stat-label">Desv. Y Obs.</div></div><div class="stat-card" style="grid-column: span 2;"><div class="stat-value">${obs.rho.toFixed(4)}</div><div class="stat-label">Correlación Obs.</div></div>`;
@@ -118,9 +121,6 @@ document.addEventListener('DOMContentLoaded', function() {
             default:
                 html += '<p>No hay estadísticas disponibles.</p>';
         }
-         if (html.length < 25 && simName !== 'bernoulli') {
-        html += '<p>Estadísticas no disponibles. Revisa la consola para más detalles.</p>';
-    }
 
     html += '</div>';
     html += `<div class="results-sequence">${primerosResultadosHtml}</div>`;

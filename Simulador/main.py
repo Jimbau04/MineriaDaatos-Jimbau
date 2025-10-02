@@ -928,14 +928,14 @@ def get_examples():
             },
             {
                 "name": "Distribución Cuadrática",
-                "expression": "(x**2 + y**2 + 1)/21",
-                "bounds": {"x_min": 0, "x_max": 2, "y_min": 0, "y_max": 2},
+                "expression": "4*x*y",
+                "bounds": {"x_min": 0.1, "x_max": 0.9, "y_min": 0.1, "y_max": 0.9},
                 "description": "Función cuadrática simple"
             },
             {
                 "name": "Distribución Mixta",
-                "expression": "(x + 2*y**2 + 3)/15",
-                "bounds": {"x_min": 0, "x_max": 1, "y_min": 0, "y_max": 1},
+                "expression": "4*x*(1-y)",
+                "bounds": {"x_min": 0.1, "x_max": 0.9, "y_min": 0.1, "y_max": 0.9},
                 "description": "Combinación lineal-cuadrática"
             }
         ]
