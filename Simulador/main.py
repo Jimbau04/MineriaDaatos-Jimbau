@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import random
-from collections import Counter
+from collections import Counter, defaultdict
 import math
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -12,6 +12,7 @@ import time
 import traceback
 from sympy import symbols, sympify, integrate, simplify, Eq, solve
 from sympy.parsing.sympy_parser import parse_expr
+import re # Para validación de expresiones 
 
 # --- Símbolos globales para Sympy ---
 x, y, u = symbols('x y u', real=True)
@@ -1070,6 +1071,272 @@ async def normal_bivariada(data: NormalBivariadaInput):
         }
     except Exception as e:
         return {"error": f"Error en la simulación: {str(e)}"}
+    
+# --------------------------------------------------------------------
+# ------------CADENAS DE MARKOV---------------------------------------
+# --------------------------------------------------------------------
+class LematizadorModel:
+    def __init__(self):
+        self.transiciones ={} #Tarnsiciones raiz - sufijo
+        self.lemas = {} #Palabra - lema
+        self.freq_palabras = {} 
+        self.vocabulario = set()
+        self.total_palabras = 0
+        self.palabras_unicas = 0
+        self.is_trained = False
+
+    def preprocesar_texto(self, texto:str) -> List[str]: #limpieza 
+        texto = texto.lower() #minusculas
+        texto = re.sub(r'[^\w\sáéíóúñü]', '', texto) #eliminar caracteres especiales
+        palabras = [word for word in texto.split() if len(word) > 2] #filtrar palabras cortas
+        return palabras
+    
+    def extraer_root_sufijo(self, palabra:str, sufijo_len: int = 2) -> Tuple[str, str]: #extrae raiz y sufijo
+        if len(palabra) <= sufijo_len:
+            return palabra, ""
+        
+        return palabra[:-sufijo_len], palabra[-sufijo_len:]
+    
+    def encontrar_lema(self, palabra:str) -> str: 
+        sufijos_comunes = ['ando', 'endo', 'iendo', 'ado', 'ido', 'aba', 'ían',
+            'amos', 'emos', 'imos', 'ar', 'er', 'ir', 'as', 'es', 'is',
+            'ción', 'sión', 'dad', 'tad', 'ez', 'eza', 'ista', 'ismo',
+            'mente', 'dor', 'dora', 'ble'
+        ]
+        
+        posible_root = palabra 
+
+        for sufijo in sorted(sufijos_comunes, key=len, reverse=True): #buscar sufijo mas largo primero
+            if palabra.endswith(sufijo) and len(palabra) > len(sufijo) + 2:
+                posible_root = palabra[:-len(sufijo)]
+                break
+        
+        candidato = [word for word in self.word_freqs.keys()
+                     if word.startswith(posible_root) and len(word) <= len(palabra)]
+        
+        if candidato:
+            return max(candidato,key=lambda w: self.word_freqs[w])
+        
+        return palabra  #si no encuentra, retorna la palabra original
+    
+    def entrenar(self, texto: str) -> Dict:
+        palabras = self.preprocesar_texto(texto)
+
+        if not palabras:
+            raise ValueError("El corpus esta vacio o no contiene palabras validas.")
+
+        #Contar freqs
+        self.freq_palabras = Counter(palabras)
+        self.vocabulario = set(palabras)
+        self.total_palabras = len(palabras)
+        self.palabras_unicas = len(self.freq_palabras)
+
+        #Construir matriz de transicion 
+        self.transiciones = defaultdict(lambda: defaultdict(int))
+
+        for palabra in palabras:
+            if len(palabra) > 3:
+                root,sufijo = self.extraer_root_sufijo(palabra)
+                self.transiciones[root][sufijo] += 1
+
+                #identificar lema
+                if palabra not in self.lemas:
+                    self.lemas[palabra] = self.encontrar_lema(palabra)
+
+        #calcular prob
+        for root in self.transiciones:
+            total = sum(self.transiciones[root].values()) 
+            for sufijo in self.transiciones[root]:
+                self.transiciones[root][sufijo] /= total
+
+        self.is_trained = True
+
+        #generar analisis
+        analisis = {
+            'total_palabras': self.total_palabras,
+            'palabras_unicas': self.palabras_unicas,
+            'avg_palabra_longitud': sum(len(word) for word in palabras) / len(palabras),
+            'top_palabras': self.freq_palabras.most_common(10),
+            'sufijo_patrones': self._get_sufijo_patrones(5),
+            'grupos_lemas': self._get_lema_groups(10)
+        }
+
+        return analisis
+    
+    def _get_sufijo_patrones(self, limte:int) -> List[Dict]:
+        patrones = []
+        for root, sufijos in list(self.transiciones.items())[:limte]:
+            sorted_sufijos = sorted(sufijos.items(),
+                                    key=lambda x: x[1],
+                                    reverse=True)[:5]
+            patrones.append({
+                'root':root,
+                'patrones': [{'sufijo': s, 'probabilidad': p} for s,p in sorted_sufijos]
+            })
+        return patrones
+    
+    def _get_lema_groups(self, limite:int) -> List[Dict]:
+        lema_to_palabras = defaultdict(list)
+        for palabra, lema in self.lemas.items():
+            lema_to_palabras[lema].append(palabra)
+
+        #ordenar por tamanio de grupo
+        grupos = []
+        for lema,palabras in sorted(lema_to_palabras.items(),
+                                    key=lambda x: len(x[1]),
+                                    reverse=True)[:limite]:
+            grupos.append({
+                'lema': lema,
+                'variantes': palabras[:8], #maximo 8 variantes
+                'contador': len(palabras),
+                'frecuencia': sum(self.freq_palabras.get(word,0) for word in palabras)
+            })
+        return grupos
+    
+    def lematizar(self, palabra:str) -> Dict:
+        if not self.is_trained:
+            raise ValueError("El modelo no ha sido entrenado aun.")
+        
+        palabra_normalizada = palabra.lower().strip() #el strpi sirve para eliminar espacios
+
+        if len(palabra_normalizada) <= 2:
+            return {
+                'original': palabra,
+                'lema': palabra_normalizada,
+                'confianza': 1.0,
+                'metodo': 'palabra_muy_corta',
+                'frecuencia':0,
+                'variantes': []
+            }
+        
+        if palabra_normalizada in self.vocabulario:
+            lema = self.lemas.get(palabra_normalizada, palabra_normalizada)
+
+            #buscar variante morfologica
+            root, _ = self.extraer_root_sufijo(palabra_normalizada)
+            variantes = [word for word in self.vocabulario
+                         if word != palabra_normalizada and word.startswith(root)][:5]
+            
+            return {
+                'original': palabra,
+                'lema': lema,
+                'confianza': 0.95,
+                'metodo': 'corpus_directa',
+                'frecuencia': self.freq_palabras.get(palabra_normalizada,0),
+                'variantes': variantes
+            }
+        
+        #prediccion markov
+        roof, sufijo = self.extraer_root_sufijo(palabra_normalizada)
+        if root in self.transiciones:
+            mejor_sufijo = max(self.transiciones[root].items(),
+                               ket=lambda x: x[1])
+            predicted_lema = root + mejor_sufijo[0]
+            confianza = mejor_sufijo[1]
+            metodo = 'markov_prediccion'
+        else:
+            similar_roots = [r for r in self.transiciones.keys()
+                             if r.levenshtein_distance(root,r) <=2] #buscar roots similares
+            
+            if similar_roots:
+                root_cercano = min(similar_roots,
+                                   key=lambda r: r.levenshtein_distance(root,r))
+                mejor_sufijo = max(self.transiciones[root_cercano].items(),
+                                   key=lambda x: x[1])
+                predicted_lema = root + mejor_sufijo[0]
+                confianza = mejor_sufijo[1] * 0.7
+                metodo = ' prediccion_similar'
+            else:
+                predicted_lema = palabra_normalizada
+                confianza = 0.3
+                metodo = 'sin_datos'
+
+        similar = [word for word in self.vocabulario
+                   if 0 < word.levenshtein_distance(palabra_normalizada, word) <= 2][:5]
+        return {
+            'original': palabra,
+            'lema': predicted_lema,
+            'confianza': confianza,
+            'metodo': metodo,
+            'frecuencia': 0,
+            'variantes': similar
+        }
+    
+    def _levenshtein_distance(self, s1:str, s2:str) -> int:
+        if len(s1) < len(s2):
+            return self._levenshtein_distance(s2, s1)
+
+        if len(s2) == 0:
+            return len(s1)
+
+        previous_row = range(len(s2) + 1)
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+
+        return previous_row[-1]
+    
+    #instancia del modelo
+lematizador_model = LematizadorModel()
+
+# --- Modelos Pydantic ---
+class CorpusUpload(BaseModel):
+    text: str
+
+
+class LemmatizeRequest(BaseModel):
+    word: str
+
+
+class BatchLemmatizeRequest(BaseModel):
+    words: List[str]
+
+# -------- ENDPOINTS MARKOV ---------------
+@simulador.post("/lemmatizer/upload-corpus")
+async def upload_corpus(data: CorpusUpload):
+    """Procesa el corpus y entrena el modelo"""
+    try:
+        if not data.text or len(data.text.strip()) < 50:
+            raise HTTPException(
+                status_code=400, 
+                detail="El corpus debe contener al menos 50 caracteres"
+            )
+        
+        start_time = time.time()
+        analisis = lematizador_model.entrenar(data.text)
+        execution_time = time.time() - start_time
+        
+        return {
+            'success': True,
+            'message': 'Corpus procesado exitosamente',
+            'execution_time': execution_time,
+            'analysis': analisis
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+
+
+            
+
+
+    
+    
+
+
+    
+            
+
+
+
     
 if __name__ == "__main__":
     import uvicorn
