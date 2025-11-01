@@ -75,8 +75,8 @@ document.addEventListener('DOMContentLoaded', function() {
         let primerosResultadosHtml = '';
 
         const crearTarjeta = (valor, etiqueta) => {
-        const valorFormateado = (typeof valor === 'number') ? valor.toFixed(4) : 'N/A';
-        return `<div class="stat-card"><div class="stat-value">${valorFormateado}</div><div class="stat-label">${etiqueta}</div></div>`;
+            const valorFormateado = (typeof valor === 'number') ? valor.toFixed(4) : 'N/A';
+            return `<div class="stat-card"><div class="stat-value">${valorFormateado}</div><div class="stat-label">${etiqueta}</div></div>`;
         };
 
         switch (simName) {
@@ -91,23 +91,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 primerosResultadosHtml = `<p><strong>Primeros 10 resultados:</strong> ${resultados.slice(0, 10).map(v => v.toFixed(3)).join(", ")}</p>`;
                 break;
             case 'gibbs':
-            // --- CORRECCIÓN CLAVE: Acceder a los datos anidados correctamente ---
-            const stats_gibbs = data.statistics; // Los datos de estadísticas están en data.statistics
-            if (stats_gibbs) {
-                html += crearTarjeta(stats_gibbs.mean_x, 'Media X');
-                html += crearTarjeta(stats_gibbs.mean_y, 'Media Y');
-                html += crearTarjeta(stats_gibbs.std_x, 'Desv. Std X');
-                html += crearTarjeta(stats_gibbs.std_y, 'Desv. Std Y');
-                html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card', '')}</div>`;
-            }
-            
-            const samples_gibbs = data.samples; // Las muestras están en data.samples
-            if (samples_gibbs && samples_gibbs.x) {
-                const primerosXGibbs = samples_gibbs.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                const primerosYGibbs = samples_gibbs.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
-                primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXGibbs}<br><strong>Primeros 10 Y:</strong> ${primerosYGibbs}</p>`;
-            }
-            break;
+    // CORRECCIÓN: Se accede a los objetos anidados de forma segura
+    const stats_gibbs = data.statistics;
+
+    if (stats_gibbs) {
+        // Se utiliza la función 'crearTarjeta' para mantener la consistencia y seguridad
+        html += crearTarjeta(stats_gibbs.mean_x, 'Media X');
+        html += crearTarjeta(stats_gibbs.mean_y, 'Media Y');
+        html += crearTarjeta(stats_gibbs.std_x, 'Desv. Std X');
+        html += crearTarjeta(stats_gibbs.std_y, 'Desv. Std Y');
+        // CORRECCIÓN: Se corrigió el error de variable (stat vs stats)
+        // y se envolvió en la función helper
+        html += `<div class="stat-card" style="grid-column: span 2;">${crearTarjeta(stats_gibbs.correlation, 'Correlación').replace('stat-card','')}</div>`;
+        // 3. Acceder al objeto anidado 'samples' para los resultados individuales
+    const samples = data.samples;
+
+    // 4. Comprobar si las muestras existen y obtener los primeros 10 resultados
+    if (samples && samples.x && samples.y) {
+        const primerosXGibbs = samples.x.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+        const primerosYGibbs = samples.y.slice(0, 10).map(v => v.toFixed(2)).join(', ');
+        primerosResultadosHtml = `<p><strong>Primeros 10 X:</strong> ${primerosXGibbs}<br><strong>Primeros 10 Y:</strong> ${primerosYGibbs}</p>`;
+    }
+    }
+    break;
             case 'normal-bivariada':
                 const obs = data.estadisticas_observadas;
                 html += `<div class="stat-card"><div class="stat-value">${obs.media_x.toFixed(4)}</div><div class="stat-label">Media X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_x.toFixed(4)}</div><div class="stat-label">Desv. X Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.media_y.toFixed(4)}</div><div class="stat-label">Media Y Obs.</div></div><div class="stat-card"><div class="stat-value">${obs.sigma_y.toFixed(4)}</div><div class="stat-label">Desv. Y Obs.</div></div><div class="stat-card" style="grid-column: span 2;"><div class="stat-value">${obs.rho.toFixed(4)}</div><div class="stat-label">Correlación Obs.</div></div>`;
@@ -118,9 +124,6 @@ document.addEventListener('DOMContentLoaded', function() {
             default:
                 html += '<p>No hay estadísticas disponibles.</p>';
         }
-         if (html.length < 25 && simName !== 'bernoulli') {
-        html += '<p>Estadísticas no disponibles. Revisa la consola para más detalles.</p>';
-    }
 
     html += '</div>';
     html += `<div class="results-sequence">${primerosResultadosHtml}</div>`;
@@ -138,9 +141,26 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'binomial': csvContent = 'Numero_Exitos\n' + datosSimulacionActual.resultados_individuales.join('\n'); break;
             case 'exponencial': case 'normal': csvContent = 'Valor\n' + datosSimulacionActual.valores.join('\n'); break;
             case 'gibbs': case 'normal-bivariada':
-                const x_vals = datosSimulacionActual.x_samples || datosSimulacionActual.valores_x, y_vals = datosSimulacionActual.y_samples || datosSimulacionActual.valores_y;
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Primero, intentamos obtener los datos de la estructura de Gibbs (anidados en 'samples').
+            // Si no existen, usamos la estructura de la normal bivariada ('valores_x').
+            const x_vals = (datosSimulacionActual.samples && datosSimulacionActual.samples.x) 
+                           ? datosSimulacionActual.samples.x 
+                           : datosSimulacionActual.valores_x;
+
+            const y_vals = (datosSimulacionActual.samples && datosSimulacionActual.samples.y) 
+                           ? datosSimulacionActual.samples.y 
+                           : datosSimulacionActual.valores_y;
+            
+            // Verificamos que realmente obtuvimos los arrays antes de procesarlos
+            if (x_vals && y_vals) {
                 csvContent = 'x,y\n' + x_vals.map((val, i) => `${val},${y_vals[i]}`).join('\n');
-                break;
+            } else {
+                alert('Error: No se encontraron datos de muestra para exportar.');
+                return; // Detenemos la función si no hay datos
+            }
+            // --- FIN DE LA CORRECCIÓN ---
+            break;
             case 'multinomial':
                  const headers = ['Categoria', 'Frecuencia_Observada', 'Frecuencia_Esperada'];
                  const dataRows = datosSimulacionActual.categorias.map((cat, i) => `${cat},${datosSimulacionActual.frecuencias_observadas[i]},${datosSimulacionActual.frecuencias_esperadas[i]}`);
@@ -447,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     nombreSimulacionActual = 'gibbs';
                     showStatus(`✅ Muestreo completado en ${result.execution_time.toFixed(3)}s.`, 'success');
                     
-                    mostrarResultados('gibbs', result.statistics);
+                    mostrarResultados('gibbs', result);
                     const plotData = result.plot_data;
                     
                     Plotly.newPlot(secondaryChart, [plotData.scatter_2d], getGraphLayout(plotData.layout_2d.title + ` (n=${requestData.n_samples})`), { responsive: true });

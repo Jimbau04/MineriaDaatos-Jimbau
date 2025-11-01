@@ -768,8 +768,8 @@ class GibbsSampler:
             "std_x": float(np.std(final_x)),
             "std_y": float(np.std(final_y)),
             "correlation": float(np.corrcoef(final_x, final_y)[0, 1]),
-            "execution_time": end_time - start_time,
-            "total_samples": len(final_x)
+            "execution_time": float(end_time - start_time),
+            "total_samples": int(len(final_x))
         }
         
         print(f"Muestreo completado en {stats['execution_time']:.3f}s")
@@ -929,14 +929,14 @@ def get_examples():
             },
             {
                 "name": "Distribución Cuadrática",
-                "expression": "(x**2 + y**2 + 1)/21",
-                "bounds": {"x_min": 0, "x_max": 2, "y_min": 0, "y_max": 2},
+                "expression": "4*x*y",
+                "bounds": {"x_min": 0.1, "x_max": 0.9, "y_min": 0.1, "y_max": 0.9},
                 "description": "Función cuadrática simple"
             },
             {
                 "name": "Distribución Mixta",
-                "expression": "(x + 2*y**2 + 3)/15",
-                "bounds": {"x_min": 0, "x_max": 1, "y_min": 0, "y_max": 1},
+                "expression": "4*x*(1-y)",
+                "bounds": {"x_min": 0.1, "x_max": 0.9, "y_min": 0.1, "y_max": 0.9},
                 "description": "Combinación lineal-cuadrática"
             }
         ]
