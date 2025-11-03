@@ -1230,17 +1230,17 @@ class LematizadorModel:
         root, sufijo = self.extraer_root_sufijo(palabra_normalizada)
         if root in self.transiciones:
             mejor_sufijo = max(self.transiciones[root].items(),
-                               ket=lambda x: x[1])
+                               key=lambda x: x[1])
             predicted_lema = root + mejor_sufijo[0]
             confianza = mejor_sufijo[1]
             metodo = 'markov_prediccion'
         else:
             similar_roots = [r for r in self.transiciones.keys()
-                             if r.levenshtein_distance(root,r) <=2] #buscar roots similares
+                             if r._levenshtein_distance(root,r) <=2] #buscar roots similares
             
             if similar_roots:
                 root_cercano = min(similar_roots,
-                                   key=lambda r: r.levenshtein_distance(root,r))
+                                   key=lambda r: r._levenshtein_distance(root,r))
                 mejor_sufijo = max(self.transiciones[root_cercano].items(),
                                    key=lambda x: x[1])
                 predicted_lema = root + mejor_sufijo[0]
@@ -1252,7 +1252,7 @@ class LematizadorModel:
                 metodo = 'sin_datos'
 
         similar = [word for word in self.vocabulario
-                   if 0 < word.levenshtein_distance(palabra_normalizada, word) <= 2][:5]
+                   if 0 < self._levenshtein_distance(palabra_normalizada, word) <= 2][:5]
         return {
             'original': palabra,
             'lema': predicted_lema,

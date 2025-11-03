@@ -1301,6 +1301,7 @@ window.inicializarLematizador = function() {
     
     const uploadArea = document.getElementById('upload-area-lemmatizer');
     const fileInput = document.getElementById('corpus-file-input');
+    const btn = document.getElementById("btn-inicializar");
     
     if (!uploadArea || !fileInput) {
         console.log('Elementos del lematizador no encontrados');
@@ -1308,7 +1309,20 @@ window.inicializarLematizador = function() {
     }
     
     console.log('Inicializando lematizador...');
-    
+
+       
+
+      // Si ya fue inicializado, no hacer nada
+      if (btn.classList.contains("success")) return;
+
+      // Aquí va tu lógica real de inicialización
+      console.log("🔧 Lematizador inicializado correctamente.");
+
+      // Desactivar el botón y cambiar estilo
+      btn.classList.add("success");
+      btn.disabled = true;
+      btn.textContent = "✅ Lematizador Inicializado";
+        
     // Prevenir comportamiento por defecto del navegador
     function preventDefaults(e) {
         e.preventDefault();
@@ -1410,67 +1424,137 @@ function formatBytes(bytes) {
 }
 
 function mostrarAnalisis(analysis) {
-    // Estadísticas principales
+    console.log('Datos de análisis recibidos:', analysis);
+    console.log('Estructura completa:', JSON.stringify(analysis, null, 2));
+    
+    // Verificar que existan los datos
+    if (!analysis) {
+        console.error('No se recibieron datos de análisis');
+        return;
+    }
+    
+    // Estadísticas principales con valores por defecto
+    const totalWords = analysis.total_palabras || 0;
+    const uniqueWords = analysis.palabras_unicas || 0;
+    const avgLength = analysis.avg_palabra_longitud || 0;
+
     const statsHtml = `
         <div class="stat-card">
-            <div class="stat-value">${analysis.total_words.toLocaleString()}</div>
+            <div class="stat-value">${totalWords.toLocaleString()}</div>
             <div class="stat-label">Total Palabras</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${analysis.unique_words.toLocaleString()}</div>
+            <div class="stat-value">${uniqueWords.toLocaleString()}</div>
             <div class="stat-label">Palabras Únicas</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${analysis.avg_word_length.toFixed(2)}</div>
+            <div class="stat-value">${avgLength.toFixed(2)}</div>
             <div class="stat-label">Long. Promedio</div>
         </div>
     `;
     document.getElementById('stats-lemmatizer').innerHTML = statsHtml;
     
-    // Top palabras
-    const topWordsHtml = analysis.top_words.map(([word, freq], idx) => `
-        <div class="word-item">
-            <div class="word-rank">${idx + 1}</div>
-            <div class="word-text">${word}</div>
-            <div class="word-freq">${freq}</div>
-        </div>
-    `).join('');
-    document.getElementById('top-words-list').innerHTML = topWordsHtml;
-    
-    // Patrones de sufijos
-    const suffixHtml = analysis.suffix_patterns.map(pattern => `
-        <div class="suffix-pattern">
-            <div class="suffix-pattern-root">Raíz: "${pattern.root}"</div>
-            <div class="suffix-badges">
-                ${pattern.patterns.map(p => `
-                    <span class="suffix-badge">-${p.suffix} (${(p.prob * 100).toFixed(1)}%)</span>
-                `).join('')}
-            </div>
-        </div>
-    `).join('');
-    document.getElementById('suffix-patterns-list').innerHTML = suffixHtml;
-    
-    // Grupos de lemas
-    const lemmaGroupsHtml = analysis.lemma_groups.map(group => `
-        <div class="lemma-group">
-            <div class="lemma-group-header">
-                <div class="lemma-main">${group.lemma}</div>
-                <div class="lemma-stats">
-                    <span class="lemma-stat">${group.count} variantes</span>
-                    <span class="lemma-stat">Freq: ${group.frequency}</span>
+    // Top palabras - CORREGIDO para manejar array de arrays
+    const topWordsElement = document.getElementById('top-words-list');
+    if (topWordsElement) {
+        if (analysis.top_palabras && Array.isArray(analysis.top_palabras) && analysis.top_palabras.length > 0) {
+            console.log('Top palabras:', analysis.top_palabras);
+            
+            const topWordsHtml = analysis.top_palabras.map(([word, freq], idx) => `
+                <div class="word-item">
+                    <div class="word-rank">${idx + 1}</div>
+                    <div class="word-text">${word}</div>
+                    <div class="word-freq">${freq}</div>
                 </div>
-            </div>
-            <div class="lemma-variants">
-                ${group.variants.map(v => `<span class="variant-badge">${v}</span>`).join('')}
-            </div>
-        </div>
-    `).join('');
-    document.getElementById('lemma-groups-list').innerHTML = lemmaGroupsHtml;
+            `).join('');
+            topWordsElement.innerHTML = topWordsHtml;
+        } else {
+            console.warn('No hay top_words o está vacío:', analysis.top_palabras);
+            topWordsElement.innerHTML = '<p style="padding: 1rem; color: #666;">No hay datos de palabras frecuentes disponibles</p>';
+        }
+    }
+    
+    // Patrones de sufijos - CORREGIDO
+    const suffixElement = document.getElementById('suffix-patterns-list');
+    if (suffixElement) {
+        if (analysis.sufijo_patrones && Array.isArray(analysis.sufijo_patrones) && analysis.sufijo_patrones.length > 0) {
+            console.log('Suffix patterns:', analysis.sufijo_patrones);
+            
+            const suffixHtml = analysis.sufijo_patrones.map(pattern => {
+                // Verificar que pattern tenga la estructura correcta
+                if (!pattern || !pattern.root || !pattern.patrones) {
+                    console.warn('Patrón inválido:', pattern);
+                    return '';
+                }
+                
+                return `
+                    <div class="suffix-pattern">
+                        <div class="suffix-pattern-root">Raíz: "${pattern.root}"</div>
+                        <div class="suffix-badges">
+                            ${pattern.patrones.map(p => {
+                                // Manejar tanto objetos como arrays
+                                const suffix = p.sufijo || p[0] || '';
+                                const prob = p.probabilidad !== undefined ? p.probabilidad : (p[1] || 0);
+                                return `<span class="suffix-badge">-${suffix} (${(prob * 100).toFixed(1)}%)</span>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).filter(html => html !== '').join('');
+            
+            suffixElement.innerHTML = suffixHtml || '<p style="padding: 1rem; color: #666;">No hay patrones de sufijos válidos</p>';
+        } else {
+            console.warn('No hay sufijo_patrones o está vacío:', analysis.sufijo_patrones);
+            suffixElement.innerHTML = '<p style="padding: 1rem; color: #666;">No hay patrones de sufijos disponibles</p>';
+        }
+    }
+    
+    // Grupos de lemas - CORREGIDO
+    const lemmaGroupsElement = document.getElementById('lemma-groups-list');
+    if (lemmaGroupsElement) {
+        if (analysis.grupos_lemas && Array.isArray(analysis.grupos_lemas) && analysis.grupos_lemas.length > 0) {
+            console.log('Grupos de lemas:', analysis.grupos_lemas);
+            
+            const lemmaGroupsHtml = analysis.grupos_lemas.map(group => {
+                // Verificar que el grupo tenga la estructura correcta
+                if (!group || !group.lema) {
+                    console.warn('Grupo de lema inválido:', group);
+                    return '';
+                }
+                
+                const variants = group.variantes || [];
+                const count = group.contador || variants.length || 0;
+                const frequency = group.frecuencia || 0;
+                
+                return `
+                    <div class="lemma-group">
+                        <div class="lemma-group-header">
+                            <div class="lemma-main">${group.lema}</div>
+                            <div class="lemma-stats">
+                                <span class="lemma-stat">${count} variantes</span>
+                                <span class="lemma-stat">Freq: ${frequency}</span>
+                            </div>
+                        </div>
+                        <div class="lemma-variants">
+                            ${variants.map(v => `<span class="variant-badge">${v}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }).filter(html => html !== '').join('');
+            
+            lemmaGroupsElement.innerHTML = lemmaGroupsHtml || '<p style="padding: 1rem; color: #666;">No hay grupos de lemas válidos</p>';
+        } else {
+            console.warn('No hay lemma_groups o está vacío:', analysis.grupos_lemas);
+            lemmaGroupsElement.innerHTML = '<p style="padding: 1rem; color: #666;">No hay grupos de lemas disponibles</p>';
+        }
+    }
+    
+    console.log('Análisis mostrado correctamente');
 }
 
 function mostrarResultadoLemma(result) {
-    const confidenceClass = result.confidence >= 0.8 ? 'confidence-high' : 
-                           result.confidence >= 0.5 ? 'confidence-medium' : 'confidence-low';
+    const confidenceClass = result.confianza >= 0.8 ? 'confidence-high' : 
+                           result.confianza >= 0.5 ? 'confidence-medium' : 'confidence-low';
     
     const methodLabels = {
         'palabra_muy_corta': 'Palabra muy corta',
@@ -1492,39 +1576,39 @@ function mostrarResultadoLemma(result) {
             
             <div class="lemma-result">
                 <div class="lemma-label">Lema Identificado</div>
-                <div class="lemma-value">${result.lemma}</div>
+                <div class="lemma-value">${result.lema}</div>
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                 <div class="confidence-bar">
                     <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.3rem;">Confianza</div>
                     <div class="confidence-progress">
-                        <div class="confidence-fill" style="width: ${result.confidence * 100}%"></div>
+                        <div class="confidence-fill" style="width: ${result.confianza * 100}%"></div>
                     </div>
                     <div class="${confidenceClass}" style="text-align: center; margin-top: 0.3rem;">
-                        ${(result.confidence * 100).toFixed(0)}%
+                        ${(result.confianza * 100).toFixed(0)}%
                     </div>
                 </div>
                 
                 <div class="confidence-bar">
                     <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.3rem;">Método</div>
                     <div style="margin-top: 0.5rem;">
-                        <span class="method-badge">${methodLabels[result.method] || result.method}</span>
+                        <span class="method-badge">${methodLabels[result.metodo] || result.metodo}</span>
                     </div>
                 </div>
             </div>
             
-            ${result.frequency > 0 ? `
+            ${result.frecuencia > 0 ? `
                 <div style="background: rgba(52, 152, 219, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                    <strong>Frecuencia en corpus:</strong> ${result.frequency} veces
+                    <strong>Frecuencia en corpus:</strong> ${result.frecuencia} veces
                 </div>
             ` : ''}
             
-            ${result.variants.length > 0 ? `
+            ${result.variantes.length > 0 ? `
                 <div class="variants-section">
                     <div class="variants-title">Variantes Morfológicas:</div>
                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
-                        ${result.variants.map(v => `<span class="variant-badge">${v}</span>`).join('')}
+                        ${result.variantes.map(v => `<span class="variant-badge">${v}</span>`).join('')}
                     </div>
                 </div>
             ` : ''}
@@ -1558,9 +1642,9 @@ function mostrarResultadosBatch(results) {
                         <tr>
                             <td><strong>${idx + 1}</strong></td>
                             <td style="font-family: 'Courier New', monospace;">${r.original}</td>
-                            <td style="font-family: 'Courier New', monospace; color: #667eea; font-weight: 700;">${r.lemma}</td>
-                            <td class="${getConfidenceClass(r.confidence)}">${(r.confidence * 100).toFixed(0)}%</td>
-                            <td style="font-size: 0.85rem;">${r.method.replace('_', ' ')}</td>
+                            <td style="font-family: 'Courier New', monospace; color: #667eea; font-weight: 700;">${r.lema}</td>
+                            <td class="${getConfidenceClass(r.confianza)}">${(r.confianza * 100).toFixed(0)}%</td>
+                            <td style="font-size: 0.85rem;">${r.metodo.replace('_', ' ')}</td>
                         </tr>
                     `).join('')}
                 </tbody>
