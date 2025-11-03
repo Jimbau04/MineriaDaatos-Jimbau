@@ -25,9 +25,10 @@
       <button class="nav-item" data-distribution="normal">Normal</button>
       <button class="nav-item" data-distribution="gibbs">Método de Gibbs</button>
       <button class="nav-item" data-distribution="normal-bivariada">Normal Bivariada</button>
+      <button class="nav-item" data-distribution="markov-chain" onclick="setupMarkovChain()">Cadenas de Markov</button>
       <br>
       <div class="sidebar-title">Lematizadores</div>
-      <button class="nav-item" data-distribution="lematizador">Cadenas de Markov  </button>
+      <button class="nav-item" data-distribution="lematizador">Dematizador  </button>
     </nav>
 
     <div class="main-content">
@@ -377,6 +378,114 @@
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
             <button class="btn-secondary">Limpiar</button>
+          </div>
+        </div>
+
+        <div class="distribution-content" id="markov-chain">
+          <div class="inputs-section">
+            <div class="panel-title">⚙️ Configurar y Simular Cadena de Markov</div>
+            
+            <!-- PASO 1: EJEMPLOS -->
+            <div class="section">
+              <div class="section-header">📚 Paso 1: Seleccionar Ejemplo (Opcional)</div>
+              <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+                Elige un ejemplo predefinido o configura tu propia cadena desde cero
+              </p>
+              <select id="markov-examples-select" class="markov-select">
+                <option value="">-- Configura tu propia cadena --</option>
+              </select>
+              <button class="btn-secondary" style="margin-top: 0.5rem; width: 100%;" onclick="cargarEjemploMarkov()">
+                📥 Cargar Ejemplo Seleccionado
+              </button>
+              <div id="markov-example-explanation" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 4px solid #667eea;">
+                <!-- Se llena dinámicamente -->
+              </div>
+            </div>
+
+            <!-- PASO 2: DEFINIR ESTADOS -->
+            <div class="section">
+              <div class="section-header">🔢 Paso 2: Definir Número de Estados</div>
+              <div class="input-group">
+                <label>Número de Estados (2-6):</label>
+                <input type="number" id="markov-n-states" min="2" max="6" value="2" onchange="generarMatrizMarkov()">
+              </div>
+            </div>
+
+            <!-- PASO 3: NOMBRES DE ESTADOS -->
+            <div class="section">
+              <div class="section-header">🏷️ Paso 3: Nombrar Estados</div>
+              <div id="markov-state-names-container">
+                <!-- Se genera dinámicamente -->
+              </div>
+            </div>
+
+            <!-- PASO 4: MATRIZ DE TRANSICIÓN -->
+            <div class="section">
+              <div class="section-header">🔀 Paso 4: Definir Matriz de Transición</div>
+              <div class="markov-matrix-info">
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">
+                  📝 <strong>Instrucciones:</strong> Cada fila representa las probabilidades de transición DESDE ese estado. La suma de cada fila debe ser 1.0
+                </p>
+              </div>
+              <div id="markov-matrix-container" class="markov-matrix">
+                <!-- Se genera dinámicamente -->
+              </div>
+            </div>
+
+            <!-- PASO 5: PARÁMETROS DE SIMULACIÓN -->
+            <div class="section">
+              <div class="section-header">🎲 Paso 5: Configurar Simulación</div>
+              
+              <div class="input-group">
+                <label>Estado Inicial:</label>
+                <select id="markov-initial-state" class="markov-select">
+                  <option value="">-- Primero configura los estados --</option>
+                </select>
+                <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;" id="markov-quick-states">
+                  <!-- Botones rápidos para seleccionar estado -->
+                </div>
+              </div>
+              
+              <div class="input-group">
+                <label>Número de Pasos:</label>
+                <input type="number" id="markov-n-steps" min="10" max="10000" value="100">
+                <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button class="markov-quick-btn" onclick="document.getElementById('markov-n-steps').value = 50">50 pasos</button>
+                  <button class="markov-quick-btn" onclick="document.getElementById('markov-n-steps').value = 100">100 pasos</button>
+                  <button class="markov-quick-btn" onclick="document.getElementById('markov-n-steps').value = 500">500 pasos</button>
+                  <button class="markov-quick-btn" onclick="document.getElementById('markov-n-steps').value = 1000">1000 pasos</button>
+                  <button class="markov-quick-btn" onclick="document.getElementById('markov-n-steps').value = 5000">5000 pasos</button>
+                </div>
+                <small style="color: #666; margin-top: 0.5rem; display: block;">
+                  💡 Más pasos = mejor convergencia a la distribución estacionaria
+                </small>
+              </div>
+            </div>
+
+            <div id="markov-config-status" style="margin-top: 1rem;"></div>
+          </div>
+
+          <!-- BOTONES DE ACCIÓN -->
+          <div class="buttons-section">
+            <button class="btn-primary" onclick="ejecutarSimulacionMarkov()">
+              🚀 Configurar y Simular
+            </button>
+            <button class="btn-secondary" onclick="limpiarMarkov()">
+              🔄 Reiniciar Todo
+            </button>
+          </div>
+
+          <!-- PANEL DE RESULTADOS (oculto inicialmente) -->
+          <div id="markov-results-panel" style="display: none; margin-top: 2rem;">
+            <div class="results-divider"></div>
+            
+            <div class="panel-title" style="margin-top: 2rem;">
+              📊 Resultados de la Simulación
+            </div>
+
+            <div id="markov-simulation-results">
+              <!-- Se llena dinámicamente -->
+            </div>
           </div>
         </div>
 

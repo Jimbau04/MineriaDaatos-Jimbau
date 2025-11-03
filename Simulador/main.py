@@ -1403,6 +1403,355 @@ async def reset_lemmatizer():
         'message': 'Modelo reiniciado exitosamente'
     }
     
+
+# =============================================================================
+# CADENAS DE MARKOV - SIMULACIÓN
+# =============================================================================
+
+class MarkovChainModel:
+    def __init__(self):
+        self.transition_matrix = {}
+        self.states = []
+        self.state_names = []
+        self.is_configured = False
+    
+    def configure(self, states: List[str], matrix: List[List[float]]) -> Dict:
+        """Configura la matriz de transición"""
+        n = len(states)
+        
+        # Validaciones
+        if n < 2:
+            raise ValueError("Debe haber al menos 2 estados")
+        
+        if len(matrix) != n:
+            raise ValueError("La matriz debe tener dimensión n x n")
+        
+        for i, row in enumerate(matrix):
+            if len(row) != n:
+                raise ValueError(f"Fila {i} tiene longitud incorrecta")
+            
+            row_sum = sum(row)
+            if not (0.99 <= row_sum <= 1.01):
+                raise ValueError(f"Fila {i} no suma 1.0 (suma: {row_sum:.4f})")
+            
+            if any(p < 0 for p in row):
+                raise ValueError(f"Fila {i} tiene probabilidades negativas")
+        
+        self.states = states
+        self.state_names = states
+        self.transition_matrix = {
+            states[i]: {states[j]: matrix[i][j] for j in range(n)}
+            for i in range(n)
+        }
+        self.is_configured = True
+        
+        return {
+            "success": True,
+            "states": self.states,
+            "n_states": n
+        }
+    
+    def simulate(self, initial_state: str, n_steps: int) -> Dict:
+        """Simula una cadena de Markov"""
+        if not self.is_configured:
+            raise ValueError("Primero debes configurar la cadena de Markov")
+        
+        if initial_state not in self.states:
+            raise ValueError(f"Estado inicial '{initial_state}' no existe")
+        
+        if n_steps < 1 or n_steps > 10000:
+            raise ValueError("El número de pasos debe estar entre 1 y 10000")
+        
+        # Simulación
+        trajectory = [initial_state]
+        current_state = initial_state
+        
+        for _ in range(n_steps - 1):
+            # Obtener probabilidades de transición
+            transitions = self.transition_matrix[current_state]
+            next_states = list(transitions.keys())
+            probabilities = list(transitions.values())
+            
+            # Seleccionar siguiente estado
+            rand_val = random.random()
+            cumulative = 0
+            for state, prob in zip(next_states, probabilities):
+                cumulative += prob
+                if rand_val <= cumulative:
+                    current_state = state
+                    break
+            
+            trajectory.append(current_state)
+        
+        # Análisis de la trayectoria
+        state_counts = Counter(trajectory)
+        state_frequencies = {
+            state: count / len(trajectory)
+            for state, count in state_counts.items()
+        }
+        
+        # Calcular transiciones observadas
+        transition_counts = defaultdict(lambda: defaultdict(int))
+        for i in range(len(trajectory) - 1):
+            from_state = trajectory[i]
+            to_state = trajectory[i + 1]
+            transition_counts[from_state][to_state] += 1
+        
+        # Probabilidades observadas
+        observed_transitions = {}
+        for from_state, to_dict in transition_counts.items():
+            total = sum(to_dict.values())
+            observed_transitions[from_state] = {
+                to_state: count / total
+                for to_state, count in to_dict.items()
+            }
+        
+        # Tiempo de primera visita a cada estado
+        first_visit = {}
+        for i, state in enumerate(trajectory):
+            if state not in first_visit:
+                first_visit[state] = i
+        
+        return {
+            "trajectory": trajectory,
+            "state_counts": dict(state_counts),
+            "state_frequencies": state_frequencies,
+            "observed_transitions": observed_transitions,
+            "first_visit": first_visit,
+            "total_steps": len(trajectory)
+        }
+    
+    def calculate_steady_state(self) -> Dict:
+        """Calcula la distribución estacionaria (si existe)"""
+        if not self.is_configured:
+            raise ValueError("Primero debes configurar la cadena de Markov")
+        
+        n = len(self.states)
+        P = np.array([[self.transition_matrix[self.states[i]][self.states[j]] 
+                      for j in range(n)] for i in range(n)])
+        
+        # Método de potencias para encontrar distribución estacionaria
+        pi = np.ones(n) / n  # Distribución inicial uniforme
+        
+        for _ in range(1000):
+            pi_new = pi @ P
+            if np.allclose(pi, pi_new, atol=1e-8):
+                break
+            pi = pi_new
+        
+        steady_state = {self.states[i]: float(pi[i]) for i in range(n)}
+        
+        return {
+            "steady_state": steady_state,
+            "converged": np.allclose(pi, pi @ P, atol=1e-8)
+        }
+    
+    def analyze_properties(self) -> Dict:
+        """Analiza propiedades de la cadena"""
+        if not self.is_configured:
+            raise ValueError("Primero debes configurar la cadena de Markov")
+        
+        n = len(self.states)
+        P = np.array([[self.transition_matrix[self.states[i]][self.states[j]] 
+                      for j in range(n)] for i in range(n)])
+        
+        # Verificar si es irreducible (simplificado)
+        # Una cadena es irreducible si todos los estados son alcanzables
+        is_irreducible = all(
+            sum(self.transition_matrix[state].values()) > 0.99
+            for state in self.states
+        )
+        
+        # Verificar aperiodicidad (simplificado)
+        # Si hay autotransiciones con prob > 0, es aperiódica
+        is_aperiodic = any(
+            self.transition_matrix[state][state] > 0
+            for state in self.states
+        )
+        
+        # Calcular eigenvalores
+        eigenvalues = np.linalg.eigvals(P)
+        
+        properties = {
+            "is_irreducible": is_irreducible,
+            "is_aperiodic": is_aperiodic,
+            "is_ergodic": is_irreducible and is_aperiodic,
+            "largest_eigenvalue": float(np.max(np.abs(eigenvalues))),
+            "n_states": n
+        }
+        
+        return properties
+
+# Instancia global
+markov_model = MarkovChainModel()
+
+# Modelos Pydantic para Markov
+class MarkovConfigInput(BaseModel):
+    states: List[str]
+    transition_matrix: List[List[float]]
+
+class MarkovSimulateInput(BaseModel):
+    initial_state: str
+    n_steps: int
+
+# --- ENDPOINTS CADENAS DE MARKOV ---
+
+@simulador.post("/markov/configure")
+async def configure_markov(data: MarkovConfigInput):
+    """Configura la matriz de transición de la cadena de Markov"""
+    try:
+        result = markov_model.configure(data.states, data.transition_matrix)
+        return {
+            "success": True,
+            "message": "Cadena de Markov configurada exitosamente",
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@simulador.post("/markov/simulate")
+async def simulate_markov(data: MarkovSimulateInput):
+    """Simula una cadena de Markov"""
+    try:
+        result = markov_model.simulate(data.initial_state, data.n_steps)
+        
+        # Calcular distribución estacionaria
+        steady_state_result = markov_model.calculate_steady_state()
+        
+        # Analizar propiedades
+        properties = markov_model.analyze_properties()
+        
+        return {
+            "success": True,
+            "simulation": result,
+            "steady_state": steady_state_result,
+            "properties": properties
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@simulador.get("/markov/examples")
+async def get_markov_examples():
+    """Retorna ejemplos predefinidos de cadenas de Markov"""
+    examples = [
+        {
+            "name": "☀️ Clima Simple",
+            "description": "Modelo de pronóstico del tiempo (2 estados)",
+            "states": ["Sol ☀️", "Lluvia 🌧️"],
+            "matrix": [
+                [0.8, 0.2],   # De Sol a: Sol, Lluvia
+                [0.4, 0.6]    # De Lluvia a: Sol, Lluvia
+            ],
+            "explanation": "Si hoy hace sol, hay 80%% de probabilidad de que mañana también haga sol. Si llueve, hay 60%% de que siga lloviendo."
+        },
+        {
+            "name": "🎲 Juego de Monopoly",
+            "description": "Posiciones en un tablero simplificado (3 estados)",
+            "states": ["Inicio 🏁", "Propiedad 🏠", "Cárcel 🔒"],
+            "matrix": [
+                [0.0, 0.7, 0.3],   # De Inicio
+                [0.5, 0.3, 0.2],   # De Propiedad
+                [0.6, 0.4, 0.0]    # De Cárcel
+            ],
+            "explanation": "Modelo simplificado de movimiento en un juego de mesa con tres zonas principales."
+        },
+        {
+            "name": "😊 Estados de Ánimo",
+            "description": "Transiciones entre emociones (4 estados)",
+            "states": ["Feliz 😊", "Neutral 😐", "Triste 😢", "Enojado 😠"],
+            "matrix": [
+                [0.6, 0.3, 0.05, 0.05],  # De Feliz
+                [0.4, 0.4, 0.1, 0.1],    # De Neutral
+                [0.2, 0.4, 0.3, 0.1],    # De Triste
+                [0.1, 0.3, 0.2, 0.4]     # De Enojado
+            ],
+            "explanation": "Modelo psicológico simplificado de cómo cambian los estados emocionales día a día."
+        },
+        {
+            "name": "📚 Calificaciones Académicas",
+            "description": "Evolución de notas (5 estados)",
+            "states": ["A", "B", "C", "D", "F"],
+            "matrix": [
+                [0.6, 0.3, 0.08, 0.015, 0.005],  # De A
+                [0.2, 0.5, 0.2, 0.08, 0.02],     # De B
+                [0.1, 0.3, 0.4, 0.15, 0.05],     # De C
+                [0.05, 0.15, 0.3, 0.4, 0.1],     # De D
+                [0.02, 0.08, 0.2, 0.3, 0.4]      # De F
+            ],
+            "explanation": "Modelo de cómo las calificaciones de un estudiante tienden a mantenerse o cambiar entre exámenes."
+        },
+        {
+            "name": "🏥 Estados de Salud",
+            "description": "Progresión de una enfermedad (4 estados)",
+            "states": ["Sano 💚", "Leve 💛", "Moderado 🧡", "Grave 💔"],
+            "matrix": [
+                [0.85, 0.12, 0.025, 0.005],  # De Sano
+                [0.3, 0.5, 0.18, 0.02],      # De Leve
+                [0.1, 0.3, 0.5, 0.1],        # De Moderado
+                [0.05, 0.15, 0.3, 0.5]       # De Grave
+            ],
+            "explanation": "Modelo simplificado de progresión de una condición médica con tratamiento."
+        },
+        {
+            "name": "💼 Lealtad de Cliente",
+            "description": "Comportamiento de compra (3 estados)",
+            "states": ["Activo 🟢", "Ocasional 🟡", "Inactivo 🔴"],
+            "matrix": [
+                [0.7, 0.25, 0.05],   # De Activo
+                [0.3, 0.5, 0.2],     # De Ocasional
+                [0.1, 0.3, 0.6]      # De Inactivo
+            ],
+            "explanation": "Modelo de retención de clientes basado en frecuencia de compras."
+        },
+        {
+            "name": "🌐 Navegación Web",
+            "description": "Flujo de usuarios en un sitio (4 estados)",
+            "states": ["Inicio 🏠", "Productos 🛍️", "Carrito 🛒", "Compra ✅"],
+            "matrix": [
+                [0.3, 0.5, 0.15, 0.05],  # De Inicio
+                [0.2, 0.4, 0.35, 0.05],  # De Productos
+                [0.1, 0.3, 0.5, 0.1],    # De Carrito
+                [0.0, 0.0, 0.0, 1.0]     # De Compra (absorvente)
+            ],
+            "explanation": "Modelo de conversión en e-commerce. 'Compra' es un estado absorvente (terminal)."
+        },
+        {
+            "name": "🎰 Juego de Fortuna",
+            "description": "Bankroll de un jugador (5 estados)",
+            "states": ["$0 💸", "$50", "$100", "$150", "$200 💰"],
+            "matrix": [
+                [1.0, 0.0, 0.0, 0.0, 0.0],      # De $0 (absorvente)
+                [0.4, 0.2, 0.3, 0.1, 0.0],      # De $50
+                [0.0, 0.3, 0.4, 0.25, 0.05],    # De $100
+                [0.0, 0.1, 0.3, 0.4, 0.2],      # De $150
+                [0.0, 0.0, 0.0, 0.0, 1.0]       # De $200 (absorvente)
+            ],
+            "explanation": "Modelo de juego con límites. Estados $0 y $200 son absorventes (el juego termina)."
+        }
+    ]
+    
+    return {"examples": examples}
+
+@simulador.post("/markov/reset")
+async def reset_markov():
+    """Reinicia el modelo de Markov"""
+    global markov_model
+    markov_model = MarkovChainModel()
+    return {
+        "success": True,
+        "message": "Modelo de Markov reiniciado"
+    }
+
+@simulador.get("/markov/status")
+async def markov_status():
+    """Obtiene el estado actual del modelo"""
+    return {
+        "is_configured": markov_model.is_configured,
+        "states": markov_model.states if markov_model.is_configured else [],
+        "n_states": len(markov_model.states) if markov_model.is_configured else 0
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(simulador)

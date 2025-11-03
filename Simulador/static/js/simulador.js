@@ -25,7 +25,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'normal': 'Distribución Normal',
         'gibbs': 'Método de Gibbs',
         'normal-bivariada': 'Distribución Normal Bivariada',
-        'lematizador': 'Lematizador con Cadenas de Markov'
+        'lematizador': 'Lematizador ',
+        'markov-chain': 'Cadenas de Markov'
     };
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -1665,4 +1666,590 @@ function mostrarResultadosBatch(results) {
     // Guardar resultados para descarga
     window.batchResults = results;
 }
+
+// =============================================================================
+// CADENAS DE MARKOV - VERSIÓN SIMPLIFICADA
+// =============================================================================
+
+let markovExamples = [];
+let markovConfigured = false;
+let markovStates = [];
+
+window.generarMatrizMarkov = function() {
+    const n = parseInt(document.getElementById('markov-n-states').value);
+    
+    if (n < 2 || n > 6) {
+        alert('El número de estados debe estar entre 2 y 6');
+        return;
+    }
+    
+    // Generar campos para nombres de estados
+    const namesContainer = document.getElementById('markov-state-names-container');
+    namesContainer.innerHTML = '';
+    
+    const namesGrid = document.createElement('div');
+    namesGrid.style.display = 'grid';
+    namesGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+    namesGrid.style.gap = '0.5rem';
+    
+    for (let i = 0; i < n; i++) {
+        const div = document.createElement('div');
+        div.className = 'input-group';
+        div.style.marginBottom = '0';
+        div.innerHTML = `
+            <label>Estado ${i + 1}:</label>
+            <input type="text" id="markov-state-${i}" class="markov-state-input" value="Estado${i + 1}" placeholder="Nombre del estado" onchange="actualizarNombresEstados()">
+        `;
+        namesGrid.appendChild(div);
+    }
+    namesContainer.appendChild(namesGrid);
+    
+    // Generar matriz
+    const matrixContainer = document.getElementById('markov-matrix-container');
+    matrixContainer.innerHTML = '';
+    
+    const table = document.createElement('table');
+    table.className = 'markov-table';
+    
+    // Encabezado
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    headerRow.innerHTML = '<th style="min-width: 100px;" title="Probabilidades de transición DESDE cada estado">Desde \\ Hacia</th>';
+    for (let j = 0; j < n; j++) {
+        const th = document.createElement('th');
+        th.id = `markov-header-${j}`;
+        th.textContent = `Estado${j + 1}`;
+        th.style.minWidth = '80px';
+        headerRow.appendChild(th);
+    }
+    const sumHeader = document.createElement('th');
+    sumHeader.textContent = 'Σ Fila';
+    sumHeader.style.background = '#764ba2';
+    sumHeader.style.minWidth = '60px';
+    sumHeader.title = 'Suma de probabilidades (debe ser 1.0)';
+    headerRow.appendChild(sumHeader);
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Cuerpo
+    const tbody = document.createElement('tbody');
+    for (let i = 0; i < n; i++) {
+        const row = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        labelCell.className = 'markov-row-label';
+        labelCell.id = `markov-row-label-${i}`;
+        labelCell.textContent = `Estado${i + 1}`;
+        labelCell.title = `Probabilidades de transición DESDE Estado${i + 1}`;
+        row.appendChild(labelCell);
+        
+        for (let j = 0; j < n; j++) {
+            const cell = document.createElement('td');
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'markov-cell-input';
+            input.id = `markov-cell-${i}-${j}`;
+            input.min = '0';
+            input.max = '1';
+            input.step = '0.01';
+            input.value = i === j ? '0.5' : (0.5 / (n - 1)).toFixed(2);
+            input.title = `P(Estado${i + 1} → Estado${j + 1})`;
+            input.onchange = () => validarFilaMarkov(i, n);
+            input.onfocus = function() {
+                this.style.background = 'rgba(102, 126, 234, 0.15)';
+            };
+            input.onblur = function() {
+                this.style.background = '';
+            };
+            cell.appendChild(input);
+            row.appendChild(cell);
+        }
+        
+        const sumCell = document.createElement('td');
+        sumCell.className = 'markov-sum-cell';
+        sumCell.id = `markov-sum-${i}`;
+        sumCell.textContent = '1.00';
+        sumCell.title = 'Suma de la fila (debe ser 1.0)';
+        row.appendChild(sumCell);
+        
+        tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    
+    // Agregar leyenda explicativa
+    const legend = document.createElement('div');
+    legend.style.marginTop = '1rem';
+    legend.style.fontSize = '0.85rem';
+    legend.style.color = '#666';
+    legend.style.padding = '0.75rem';
+    legend.style.background = 'rgba(102, 126, 234, 0.05)';
+    legend.style.borderRadius = '8px';
+    legend.innerHTML = `
+        <strong>📖 Cómo leer la matriz:</strong><br>
+        • Cada fila representa un estado de origen<br>
+        • Cada columna representa un estado de destino<br>
+        • Cada celda es la probabilidad de transitar del estado fila al estado columna<br>
+        • <span style="color: #27ae60; font-weight: bold;">Verde</span> = Suma correcta (1.0) | 
+        <span style="color: #e74c3c; font-weight: bold;">Rojo</span> = Suma incorrecta
+    `;
+    
+    matrixContainer.appendChild(table);
+    matrixContainer.appendChild(legend);
+    
+    // Actualizar select de estado inicial
+    actualizarSelectEstadoInicial();
+};
+
+window.actualizarNombresEstados = function() {
+    const n = parseInt(document.getElementById('markov-n-states').value);
+    
+    for (let i = 0; i < n; i++) {
+        const stateName = document.getElementById(`markov-state-${i}`).value || `Estado${i + 1}`;
+        const headerEl = document.getElementById(`markov-header-${i}`);
+        const rowLabelEl = document.getElementById(`markov-row-label-${i}`);
+        
+        if (headerEl) headerEl.textContent = stateName;
+        if (rowLabelEl) rowLabelEl.textContent = stateName;
+    }
+    
+    actualizarSelectEstadoInicial();
+};
+
+window.actualizarSelectEstadoInicial = function() {
+    const n = parseInt(document.getElementById('markov-n-states').value);
+    const select = document.getElementById('markov-initial-state');
+    select.innerHTML = '';
+    
+    for (let i = 0; i < n; i++) {
+        const stateName = document.getElementById(`markov-state-${i}`)?.value || `Estado${i + 1}`;
+        const option = document.createElement('option');
+        option.value = stateName;
+        option.textContent = stateName;
+        select.appendChild(option);
+    }
+};
+
+window.validarFilaMarkov = function(rowIndex, n) {
+    let sum = 0;
+    for (let j = 0; j < n; j++) {
+        const input = document.getElementById(`markov-cell-${rowIndex}-${j}`);
+        sum += parseFloat(input.value) || 0;
+    }
+    
+    const sumCell = document.getElementById(`markov-sum-${rowIndex}`);
+    sumCell.textContent = sum.toFixed(2);
+    
+    if (Math.abs(sum - 1.0) < 0.01) {
+        sumCell.style.color = '#27ae60';
+        sumCell.style.fontWeight = 'bold';
+    } else {
+        sumCell.style.color = '#e74c3c';
+        sumCell.style.fontWeight = 'bold';
+    }
+};
+
+window.cargarEjemplosMarkov = async function() {
+    try {
+        const response = await fetch('/markov/examples');
+        if (!response.ok) throw new Error('Error al cargar ejemplos');
+        
+        const data = await response.json();
+        markovExamples = data.examples;
+        
+        const select = document.getElementById('markov-examples-select');
+        select.innerHTML = '<option value="">-- Configura tu propia cadena --</option>';
+        
+        markovExamples.forEach((ex, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            option.textContent = ex.name;
+            select.appendChild(option);
+        });
+        
+        // Listener para mostrar explicación al seleccionar
+        select.addEventListener('change', function() {
+            const explanationDiv = document.getElementById('markov-example-explanation');
+            const idx = this.value;
+            
+            if (idx === '') {
+                explanationDiv.style.display = 'none';
+            } else {
+                const example = markovExamples[idx];
+                explanationDiv.style.display = 'block';
+                explanationDiv.innerHTML = `
+                    <div style="margin-bottom: 0.5rem;">
+                        <strong style="color: #667eea; font-size: 1.1rem;">${example.name}</strong>
+                    </div>
+                    <div style="color: #555; font-size: 0.95rem; line-height: 1.6;">
+                        📝 ${example.description}<br><br>
+                        💡 <strong>Explicación:</strong> ${example.explanation}
+                    </div>
+                `;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error cargando ejemplos:', error);
+    }
+};
+
+window.cargarEjemploMarkov = function() {
+    const select = document.getElementById('markov-examples-select');
+    const idx = select.value;
+    
+    if (idx === '') {
+        alert('Selecciona un ejemplo primero');
+        return;
+    }
+    
+    const example = markovExamples[idx];
+    const n = example.states.length;
+    
+    // Actualizar número de estados
+    document.getElementById('markov-n-states').value = n;
+    generarMatrizMarkov();
+    
+    // Cargar nombres de estados
+    example.states.forEach((stateName, i) => {
+        document.getElementById(`markov-state-${i}`).value = stateName;
+    });
+    
+    // Cargar matriz
+    example.matrix.forEach((row, i) => {
+        row.forEach((val, j) => {
+            document.getElementById(`markov-cell-${i}-${j}`).value = val;
+        });
+        validarFilaMarkov(i, n);
+    });
+    
+    // Actualizar encabezados y nombres
+    actualizarNombresEstados();
+    
+    // Mostrar mensaje de éxito
+    const statusDiv = document.getElementById('markov-config-status');
+    statusDiv.innerHTML = `
+        <div class="status success">
+            ✅ <strong>${example.name}</strong> cargado exitosamente.<br>
+            <small style="opacity: 0.9;">Puedes modificar los valores o simular directamente.</small>
+        </div>
+    `;
+    
+    // Scroll suave a la configuración
+    document.getElementById('markov-state-names-container').scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+    });
+    
+    setTimeout(() => {
+        statusDiv.innerHTML = '';
+    }, 5000);
+};
+
+
+window.setupMarkovChain = function() {
+    cargarEjemplosMarkov();
+    generarMatrizMarkov();
+}
+
+window.ejecutarSimulacionMarkov = async function() {
+    const n = parseInt(document.getElementById('markov-n-states').value);
+    const initialState = document.getElementById('markov-initial-state').value;
+    const nSteps = parseInt(document.getElementById('markov-n-steps').value);
+    const statusDiv = document.getElementById('markov-config-status');
+    
+    // Validaciones
+    if (!initialState) {
+        statusDiv.innerHTML = '<div class="status error">❌ Selecciona un estado inicial</div>';
+        return;
+    }
+    
+    if (nSteps < 10 || nSteps > 10000) {
+        statusDiv.innerHTML = '<div class="status error">❌ El número de pasos debe estar entre 10 y 10000</div>';
+        return;
+    }
+    
+    // Obtener nombres de estados
+    const states = [];
+    for (let i = 0; i < n; i++) {
+        const name = document.getElementById(`markov-state-${i}`).value.trim();
+        if (!name) {
+            statusDiv.innerHTML = '<div class="status error">❌ Todos los estados deben tener nombre</div>';
+            return;
+        }
+        states.push(name);
+    }
+    
+    // Verificar nombres únicos
+    if (new Set(states).size !== states.length) {
+        statusDiv.innerHTML = '<div class="status error">❌ Los nombres de estados deben ser únicos</div>';
+        return;
+    }
+    
+    // Obtener matriz
+    const matrix = [];
+    for (let i = 0; i < n; i++) {
+        const row = [];
+        for (let j = 0; j < n; j++) {
+            const val = parseFloat(document.getElementById(`markov-cell-${i}-${j}`).value);
+            if (isNaN(val) || val < 0 || val > 1) {
+                statusDiv.innerHTML = `<div class="status error">❌ Valor inválido en celda (${states[i]} → ${states[j]})</div>`;
+                return;
+            }
+            row.push(val);
+        }
+        
+        const sum = row.reduce((a, b) => a + b, 0);
+        if (Math.abs(sum - 1.0) > 0.01) {
+            statusDiv.innerHTML = `<div class="status error">❌ Fila "${states[i]}" no suma 1.0 (suma: ${sum.toFixed(4)})</div>`;
+            return;
+        }
+        
+        matrix.push(row);
+    }
+    
+    // Mostrar progreso
+    statusDiv.innerHTML = '<div class="status info">🔄 Configurando y ejecutando simulación...</div>';
+    
+    try {
+        // Configurar
+        const configResponse = await fetch('/markov/configure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ states, transition_matrix: matrix })
+        });
+        
+        if (!configResponse.ok) {
+            const error = await configResponse.json();
+            throw new Error(error.detail || 'Error al configurar');
+        }
+        
+        // Simular
+        const simResponse = await fetch('/markov/simulate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initial_state: initialState, n_steps: nSteps })
+        });
+        
+        if (!simResponse.ok) {
+            const error = await simResponse.json();
+            throw new Error(error.detail || 'Error en la simulación');
+        }
+        
+        const result = await simResponse.json();
+        
+        statusDiv.innerHTML = '<div class="status success">✅ Simulación completada exitosamente</div>';
+        
+        // Mostrar resultados
+        mostrarResultadosMarkov(result);
+        
+        // Scroll suave a resultados
+        setTimeout(() => {
+            document.getElementById('markov-results-panel').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }, 500);
+        
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+    }
+};
+
+window.mostrarResultadosMarkov = function(data) {
+    const sim = data.simulation;
+    const steady = data.steady_state;
+    const props = data.properties;
+    
+    // Mostrar panel de resultados
+    document.getElementById('markov-results-panel').style.display = 'block';
+    
+    let html = `
+        <div class="summary-card">
+            <h3 style="margin-bottom: 1rem; color: #333;">🎯 Resumen de la Simulación</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-label">Pasos Simulados</div>
+                    <div class="summary-value">${sim.total_steps.toLocaleString()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Estados Diferentes Visitados</div>
+                    <div class="summary-value">${Object.keys(sim.state_counts).length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Estado Más Frecuente</div>
+                    <div class="summary-value" style="font-size: 1.2rem;">
+                        ${Object.entries(sim.state_counts).sort((a, b) => b[1] - a[1])[0][0]}
+                    </div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Visitas al Más Frecuente</div>
+                    <div class="summary-value">
+                        ${Object.entries(sim.state_counts).sort((a, b) => b[1] - a[1])[0][1]}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="markov-info-box" style="margin-top: 1.5rem;">
+            <strong>📚 Propiedades Matemáticas de la Cadena:</strong><br><br>
+            • <strong>Irreducible:</strong> ${props.is_irreducible ? '✅ Sí - Todos los estados son alcanzables entre sí' : '❌ No - Algunos estados no son alcanzables'}<br>
+            • <strong>Aperiódica:</strong> ${props.is_aperiodic ? '✅ Sí - No hay ciclos regulares' : '❌ No - Existe periodicidad'}<br>
+            • <strong>Ergódica:</strong> ${props.is_ergodic ? '✅ Sí - Converge a distribución estacionaria única' : '❌ No - No garantiza convergencia'}<br>
+            ${props.is_ergodic ? '<br><em style="color: #27ae60;">Esta cadena converge a una distribución estacionaria independientemente del estado inicial.</em>' : ''}
+        </div>
+        
+        <div class="section" style="margin-top: 2rem;">
+            <div class="section-header">📊 Frecuencias Observadas vs Distribución Estacionaria</div>
+            <div id="markov-freq-chart" style="height: 400px; margin-top: 1rem;"></div>
+        </div>
+        
+        <div class="section" style="margin-top: 2rem;">
+            <div class="section-header">📈 Trayectoria de Estados</div>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+                Visualización de los primeros ${Math.min(100, sim.trajectory.length)} pasos de la simulación
+            </p>
+            <div id="markov-trajectory-chart" style="height: 350px;"></div>
+        </div>
+        
+        <div class="section" style="margin-top: 2rem;">
+            <div class="section-header">📋 Tabla Comparativa Detallada</div>
+            <table class="markov-results-table">
+                <thead>
+                    <tr>
+                        <th>Estado</th>
+                        <th>Visitas</th>
+                        <th>Frecuencia Observada</th>
+                        <th>Distribución Estacionaria</th>
+                        <th>Diferencia</th>
+                        <th>Primer Visita (Paso)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${Object.keys(steady.steady_state).map(state => {
+                        const obs = sim.state_frequencies[state] || 0;
+                        const theo = steady.steady_state[state];
+                        const diff = Math.abs(obs - theo);
+                        const visits = sim.state_counts[state] || 0;
+                        const firstVisit = sim.first_visit[state] !== undefined ? sim.first_visit[state] : 'N/A';
+                        
+                        return `
+                            <tr>
+                                <td><strong>${state}</strong></td>
+                                <td style="text-align: center;">${visits}</td>
+                                <td style="text-align: center;">${(obs * 100).toFixed(2)}%</td>
+                                <td style="text-align: center;">${(theo * 100).toFixed(2)}%</td>
+                                <td style="text-align: center; color: ${diff < 0.05 ? '#27ae60' : diff < 0.1 ? '#f39c12' : '#e74c3c'}; font-weight: bold;">
+                                    ${(diff * 100).toFixed(2)}%
+                                </td>
+                                <td style="text-align: center;">${firstVisit}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="explanation-box" style="margin-top: 2rem;">
+            <div class="explanation-title">💡 Interpretación de Resultados</div>
+            <div style="line-height: 1.8; color: #555;">
+                <strong>1. Frecuencias Observadas:</strong> Proporción de veces que se visitó cada estado durante la simulación.<br><br>
+                <strong>2. Distribución Estacionaria:</strong> Probabilidades teóricas a largo plazo. Si la cadena es ergódica, las frecuencias observadas convergen a estos valores.<br><br>
+                <strong>3. Diferencia:</strong> 
+                <span style="color: #27ae60;">• Verde (&lt;5%)</span> = Excelente convergencia | 
+                <span style="color: #f39c12;">• Amarillo (5-10%)</span> = Buena convergencia | 
+                <span style="color: #e74c3c;">• Rojo (&gt;10%)</span> = Aumenta el número de pasos<br><br>
+                <strong>4. Primer Visita:</strong> Paso en el que se visitó cada estado por primera vez.
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('markov-simulation-results').innerHTML = html;
+    
+    // Gráfico de frecuencias
+    const freqTrace = {
+        x: Object.keys(sim.state_frequencies),
+        y: Object.values(sim.state_frequencies).map(v => v * 100),
+        type: 'bar',
+        name: 'Frecuencia Observada',
+        marker: { color: '#667eea' }
+    };
+    
+    const steadyTrace = {
+        x: Object.keys(steady.steady_state),
+        y: Object.values(steady.steady_state).map(v => v * 100),
+        type: 'bar',
+        name: 'Distribución Estacionaria (Teórica)',
+        marker: { color: '#764ba2' }
+    };
+    
+    Plotly.newPlot('markov-freq-chart', [freqTrace, steadyTrace], {
+        title: '',
+        xaxis: { title: 'Estados' },
+        yaxis: { title: 'Probabilidad (%)' },
+        barmode: 'group',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
+    }, { responsive: true });
+    
+    // Gráfico de trayectoria
+    const trajectoryFirst = sim.trajectory.slice(0, Math.min(100, sim.trajectory.length));
+    const stateToNumber = {};
+    Object.keys(sim.state_counts).forEach((state, idx) => {
+        stateToNumber[state] = idx;
+    });
+    
+    const trajectoryNumbers = trajectoryFirst.map(state => stateToNumber[state]);
+    
+    const trajectoryTrace = {
+        y: trajectoryNumbers,
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: { color: '#667eea', size: 5 },
+        line: { color: '#667eea', width: 2 }
+    };
+    
+    Plotly.newPlot('markov-trajectory-chart', [trajectoryTrace], {
+        title: '',
+        xaxis: { title: 'Número de Paso' },
+        yaxis: {
+            title: 'Estado',
+            tickvals: Object.values(stateToNumber),
+            ticktext: Object.keys(stateToNumber)
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
+    }, { responsive: true });
+};
+
+window.limpiarMarkov = async function() {
+    if (!confirm('¿Estás seguro de que deseas reiniciar? Se perderán todos los datos.')) {
+        return;
+    }
+    
+    // Reiniciar en el backend
+    await fetch('/markov/reset', { method: 'POST' });
+    
+    // Reiniciar estado local
+    markovConfigured = false;
+    markovStates = [];
+    
+    // Limpiar UI
+    document.getElementById('markov-examples-select').value = '';
+    document.getElementById('markov-n-states').value = 2;
+    document.getElementById('markov-n-steps').value = 100;
+    generarMatrizMarkov();
+    
+    document.getElementById('markov-config-status').innerHTML = '';
+    document.getElementById('markov-results-panel').style.display = 'none';
+    document.getElementById('markov-simulation-results').innerHTML = '';
+    
+    // Scroll al inicio
+    document.getElementById('markov-chain').scrollIntoView({ behavior: 'smooth' });
+};
+
+
+
+// =============================================================================
+// FIN CADENAS DE MARKOV
+// =============================================================================
+
 });
