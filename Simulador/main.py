@@ -90,7 +90,7 @@ async def binomial(data: BinomialInput):
     resultados = []
     
     if data.num_pruebas > 10000 and data.num_experimentos > 1000:
-         raise HTTPException(status_code=400, detail="La combinación de ensayos y simulaciones es demasiado grande.")
+        raise HTTPException(status_code=400, detail="La combinación de ensayos y simulaciones es demasiado grande.")
 
     for _ in range(data.num_experimentos):
         exitos_en_prueba = 0
@@ -408,7 +408,7 @@ async def exponencial(data: ExponencialInput):
             "maximo": float(np.max(valores))
         }
     else:
-         estadisticas_calculadas = {"media": 0, "desviacion_estandar": 0, "minimo": 0, "maximo": 0}
+        estadisticas_calculadas = {"media": 0, "desviacion_estandar": 0, "minimo": 0, "maximo": 0}
 
     return {
         "valores": valores,
@@ -1111,11 +1111,11 @@ class LematizadorModel:
                 posible_root = palabra[:-len(sufijo)]
                 break
         
-        candidato = [word for word in self.word_freqs.keys()
+        candidato = [word for word in self.freq_palabras.keys()
                      if word.startswith(posible_root) and len(word) <= len(palabra)]
         
         if candidato:
-            return max(candidato,key=lambda w: self.word_freqs[w])
+            return max(candidato,key=lambda w: self.freq_palabras[w])
         
         return palabra  #si no encuentra, retorna la palabra original
     
@@ -1227,7 +1227,7 @@ class LematizadorModel:
             }
         
         #prediccion markov
-        roof, sufijo = self.extraer_root_sufijo(palabra_normalizada)
+        root, sufijo = self.extraer_root_sufijo(palabra_normalizada)
         if root in self.transiciones:
             mejor_sufijo = max(self.transiciones[root].items(),
                                ket=lambda x: x[1])
@@ -1261,7 +1261,7 @@ class LematizadorModel:
             'frecuencia': 0,
             'variantes': similar
         }
-    
+   
     def _levenshtein_distance(self, s1:str, s2:str) -> int:
         if len(s1) < len(s2):
             return self._levenshtein_distance(s2, s1)
@@ -1280,8 +1280,8 @@ class LematizadorModel:
             previous_row = current_row
 
         return previous_row[-1]
-    
-    #instancia del modelo
+   
+#instancia del modelo
 lematizador_model = LematizadorModel()
 
 # --- Modelos Pydantic ---
@@ -1306,11 +1306,11 @@ async def upload_corpus(data: CorpusUpload):
                 status_code=400, 
                 detail="El corpus debe contener al menos 50 caracteres"
             )
-        
+       
         start_time = time.time()
         analisis = lematizador_model.entrenar(data.text)
         execution_time = time.time() - start_time
-        
+
         return {
             'success': True,
             'message': 'Corpus procesado exitosamente',
@@ -1320,23 +1320,88 @@ async def upload_corpus(data: CorpusUpload):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+@simulador.post("/lemmatizer/lemmatize")
+async def lemmatize_word(data: LemmatizeRequest):
+    """Lematiza una palabra individual"""
+    try:
+        if not lematizador_model.is_trained:
+            raise HTTPException(
+                status_code=400,
+                detail="Primero debes cargar y procesar un corpus"
+            )
+        
+        if not data.word or len(data.word.strip()) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes proporcionar una palabra válida"
+            )
+        
+        result = lematizador_model.lematizar(data.word)
+        
+        return {
+            'success': True,
+            'result': result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@simulador.post("/lemmatizer/lemmatize-batch")
+async def lemmatize_batch(data: BatchLemmatizeRequest):
+    """Lematiza múltiples palabras"""
+    try:
+        if not lematizador_model.is_trained:
+            raise HTTPException(
+                status_code=400,
+                detail="Primero debes cargar y procesar un corpus"
+            )
+        
+        if not data.words or len(data.words) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes proporcionar al menos una palabra"
+            )
+        
+        results = []
+        for word in data.words[:100]:  # Límite de 100 palabras
+            if word.strip():
+                result = lematizador_model.lematizar(word)
+                results.append(result)
+        
+        return {
+            'success': True,
+            'total': len(results),
+            'results': results
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@simulador.get("/lemmatizer/status")
+async def lemmatizer_status():
+    """Obtiene el estado del modelo"""
+    return {
+        'is_trained': lematizador_model.is_trained,
+        'total_words': lematizador_model.total_palabras if lematizador_model.is_trained else 0,
+        'unique_words': lematizador_model.palabras_unicas if lematizador_model.is_trained else 0,
+        'vocabulary_size': len(lematizador_model.vocabulario)
+    }
 
 
-
-
-            
-
-
-    
-    
-
-
-    
-            
-
-
-
+@simulador.post("/lemmatizer/reset")
+async def reset_lemmatizer():
+    """Reinicia el modelo"""
+    global lematizador_model
+    lematizador_model = LematizadorModel()
+    return {
+        'success': True,
+        'message': 'Modelo reiniciado exitosamente'
+    }
     
 if __name__ == "__main__":
     import uvicorn

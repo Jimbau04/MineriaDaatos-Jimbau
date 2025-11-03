@@ -25,6 +25,9 @@
       <button class="nav-item" data-distribution="normal">Normal</button>
       <button class="nav-item" data-distribution="gibbs">Método de Gibbs</button>
       <button class="nav-item" data-distribution="normal-bivariada">Normal Bivariada</button>
+      <br>
+      <div class="sidebar-title">Lematizadores</div>
+      <button class="nav-item" data-distribution="lematizador">Cadenas de Markov  </button>
     </nav>
 
     <div class="main-content">
@@ -374,6 +377,149 @@
           <div class="buttons-section">
             <button class="btn-primary">Simular</button>
             <button class="btn-secondary">Limpiar</button>
+          </div>
+        </div>
+
+        <div class="distribution-content" id="lematizador">
+          <div class="tabs">
+            <button class="tab-button active" onclick="cambiarTabLemmatizer('cargar')">📤 Cargar Corpus</button>
+            <button class="tab-button" onclick="cambiarTabLemmatizer('analisis')" id="tab-analisis-btn" disabled>📊 Análisis</button>
+            <button class="tab-button" onclick="cambiarTabLemmatizer('lematizar')" id="tab-lematizar-btn" disabled>🔍 Lematizar</button>
+          </div>
+
+          <!-- TAB: CARGAR CORPUS -->
+          <div id="cargar-corpus" class="tab-content active">
+
+            <button id="btn-inicializar" class="btn-inicializar" onclick="inicializarLematizador()">🚀 Inicializar Lematizador</button>
+            
+            <div class="inputs-section">
+              <div class="panel-title">📤 Cargar Corpus de Texto</div>
+              
+              <div class="section">
+                <div class="upload-area" id="upload-area-lemmatizer">
+                  <div class="upload-icon">📁</div>
+                  <h3>Arrastra un archivo de texto aquí</h3>
+                  <p>o haz clic en el botón para seleccionar un archivo .txt</p>
+                  <input type="file" id="corpus-file-input" accept=".txt" style="display: none;">
+                  <button class="btn-primary" type="button" onclick="event.stopPropagation(); document.getElementById('corpus-file-input').click();">
+                    Seleccionar Archivo
+                  </button>
+                </div>
+                
+                <div id="corpus-preview" style="display: none;">
+                  <div class="corpus-info">
+                    <div class="info-item">
+                      <span class="info-label">Archivo:</span>
+                      <span class="info-value" id="corpus-filename">-</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Tamaño:</span>
+                      <span class="info-value" id="corpus-size">-</span>
+                    </div>
+                  </div>
+                  
+                  <div class="corpus-preview-box">
+                    <h4>Vista Previa:</h4>
+                    <pre id="corpus-preview-text"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="buttons-section" id="corpus-buttons" style="display: none;">
+              <button class="btn-primary" type="button" onclick="procesarCorpus()">
+                🚀 Procesar Corpus
+              </button>
+              <button class="btn-secondary" type="button" onclick="limpiarCorpus()">
+                🗑️ Limpiar
+              </button>
+            </div>
+            
+            <div id="processing-status" style="display: none; margin-top: 1rem;"></div>
+          </div>
+
+          <!-- TAB: ANÁLISIS -->
+          <div id="analisis-corpus" class="tab-content">
+            <div class="panel-title">📊 Análisis del Corpus</div>
+            
+            <div id="analisis-content">
+              <div class="stats-grid" id="stats-lemmatizer">
+                <!-- Se llenará dinámicamente -->
+              </div>
+              
+              <div class="section" style="margin-top: 2rem;">
+                <div class="section-header">📈 Palabras Más Frecuentes</div>
+                <div id="top-words-list" class="words-list">
+                  <!-- Se llenará dinámicamente -->
+                </div>
+              </div>
+              
+              <div class="section" style="margin-top: 2rem;">
+                <div class="section-header">🔗 Patrones de Sufijos (Cadenas de Markov)</div>
+                <div id="suffix-patterns-list">
+                  <!-- Se llenará dinámicamente -->
+                </div>
+              </div>
+              
+              <div class="section" style="margin-top: 2rem;">
+                <div class="section-header">📚 Grupos de Lemas</div>
+                <div id="lemma-groups-list">
+                  <!-- Se llenará dinámicamente -->
+                </div>
+              </div>
+              
+              <div class="buttons-section" style="margin-top: 2rem;">
+                <button class="btn-primary" onclick="descargarAnalisis()">
+                  💾 Descargar Análisis (JSON)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: LEMATIZAR -->
+          <div id="lematizar-palabras" class="tab-content">
+            <div class="panel-title">🔍 Lematizar Palabras</div>
+            
+            <div class="inputs-section">
+              <div class="section">
+                <h4 style="margin-bottom: 1rem;">Lematizar Palabra Individual</h4>
+                <div class="input-group" style="display: flex; gap: 1rem;">
+                  <input 
+                    type="text" 
+                    id="palabra-input" 
+                    placeholder="Escribe una palabra..."
+                    style="flex: 1;"
+                    onkeypress="if(event.key === 'Enter') lematizarPalabra()"
+                  >
+                  <button class="btn-primary" onclick="lematizarPalabra()">
+                    🔍 Analizar
+                  </button>
+                </div>
+              </div>
+              
+              <div id="resultado-lemma" style="display: none; margin-top: 2rem;">
+                <!-- Se llenará dinámicamente -->
+              </div>
+              
+              <div class="section" style="margin-top: 2rem;">
+                <h4 style="margin-bottom: 1rem;">Lematizar Múltiples Palabras</h4>
+                <div class="input-group">
+                  <textarea 
+                    id="palabras-batch" 
+                    placeholder="Escribe varias palabras separadas por espacios o saltos de línea..."
+                    rows="4"
+                    style="width: 100%; padding: 0.75rem; border: 2px solid #e1e1e1; border-radius: 8px; font-size: 1rem;"
+                  ></textarea>
+                </div>
+                <button class="btn-primary" onclick="lematizarBatch()" style="margin-top: 1rem;">
+                  🚀 Lematizar Todas
+                </button>
+              </div>
+              
+              <div id="resultado-batch" style="display: none; margin-top: 2rem;">
+                <!-- Se llenará dinámicamente -->
+              </div>
+            </div>
           </div>
         </div>
 

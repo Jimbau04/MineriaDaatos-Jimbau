@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadBtn = document.getElementById('download-csv-btn');
     const resultsPanelContainer = document.getElementById('results-panel-container');
 
+    
+
     // Estado global para la última simulación
     let datosSimulacionActual = null;
     let nombreSimulacionActual = '';
@@ -22,8 +24,29 @@ document.addEventListener('DOMContentLoaded', function() {
         'exponencial': 'Distribución Exponencial',
         'normal': 'Distribución Normal',
         'gibbs': 'Método de Gibbs',
-        'normal-bivariada': 'Distribución Normal Bivariada'
+        'normal-bivariada': 'Distribución Normal Bivariada',
+        'lematizador': 'Lematizador con Cadenas de Markov'
     };
+
+    document.addEventListener('DOMContentLoaded', function() {
+    // Buscar todos los botones de navegación
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        navItems.forEach(item => {
+            const originalClickHandler = item.onclick;
+            
+            item.addEventListener('click', function() {
+                const distribution = this.getAttribute('data-distribution');
+                
+                // Si es el lematizador, inicializar
+                if (distribution === 'lematizador') {
+                    setTimeout(() => {
+                        initializarLematizador();
+                    }, 100);
+                }
+            });
+        });
+    });
 
     // --- HELPERS MATEMÁTICOS ---
     function factorial(n) {
@@ -179,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- LÓGICA DE NAVEGACIÓN Y LIMPIEZA ---
     function actualizarVisibilidadPaneles(distribution) {
-        const esPestanaEspecial = distribution === 'multinomial';
+        const esPestanaEspecial = distribution === 'multinomial'|| distribution === 'lematizador';
         resultsPanelContainer.style.display = esPestanaEspecial ? 'none' : 'block';
         chartsContainer.style.display = esPestanaEspecial ? 'none' : 'block';
     }
@@ -1053,4 +1076,509 @@ document.addEventListener('DOMContentLoaded', function() {
     setupNormal();
     setupGibbs();
     setupNormalBivariada();
+
+
+// =============================================================================
+// LEMATIZADOR CON CADENAS DE MARKOV
+// =============================================================================
+
+let corpusTexto = '';
+let analisisGlobal = null;
+let lematizadorInicializado = false;
+
+// =============================================================================
+// FUNCIONES GLOBALES (llamadas desde HTML)
+// =============================================================================
+
+window.cambiarTabLemmatizer = function(tabName) {
+    // Ocultar todos los tabs del lematizador
+    const tabs = document.querySelectorAll('#lematizador .tab-content');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Desactivar todos los botones del lematizador
+    const buttons = document.querySelectorAll('#lematizador .tab-button');
+    buttons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Activar el tab seleccionado
+    const tabMap = {
+        'cargar': 'cargar-corpus',
+        'analisis': 'analisis-corpus',
+        'lematizar': 'lematizar-palabras'
+    };
+    
+    const targetTab = document.getElementById(tabMap[tabName]);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+    
+    // Activar el botón correspondiente
+    const buttonIndex = tabName === 'cargar' ? 0 : tabName === 'analisis' ? 1 : 2;
+    if (buttons[buttonIndex]) {
+        buttons[buttonIndex].classList.add('active');
+    }
+};
+
+window.procesarCorpus = async function() {
+    if (!corpusTexto || corpusTexto.trim().length < 50) {
+        alert('El corpus debe contener al menos 50 caracteres');
+        return;
+    }
+    
+    const statusDiv = document.getElementById('processing-status');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="status info">🔄 Procesando corpus...</div>';
+    
+    try {
+        const response = await fetch('/lemmatizer/upload-corpus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: corpusTexto })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error al procesar el corpus');
+        }
+        
+        const result = await response.json();
+        analisisGlobal = result.analysis;
+        
+        statusDiv.innerHTML = `<div class="status success">✅ Corpus procesado en ${result.execution_time.toFixed(2)}s</div>`;
+        
+        // Habilitar tabs
+        document.getElementById('tab-analisis-btn').disabled = false;
+        document.getElementById('tab-lematizar-btn').disabled = false;
+        
+        // Mostrar análisis
+        mostrarAnalisis(analisisGlobal);
+        window.cambiarTabLemmatizer('analisis');
+        
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+    }
+};
+
+window.lematizarPalabra = async function() {
+    const palabra = document.getElementById('palabra-input').value.trim();
+    
+    if (!palabra) {
+        alert('Por favor escribe una palabra');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/lemmatizer/lemmatize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word: palabra })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error al lematizar');
+        }
+        
+        const data = await response.json();
+        mostrarResultadoLemma(data.result);
+        
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+};
+
+window.lematizarBatch = async function() {
+    const textarea = document.getElementById('palabras-batch').value.trim();
+    
+    if (!textarea) {
+        alert('Por favor escribe al menos una palabra');
+        return;
+    }
+    
+    // Separar por espacios y saltos de línea
+    const palabras = textarea.split(/[\s\n]+/).filter(p => p.length > 0);
+    
+    if (palabras.length === 0) {
+        alert('No se encontraron palabras válidas');
+        return;
+    }
+    
+    if (palabras.length > 100) {
+        alert('Máximo 100 palabras por lote');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/lemmatizer/lemmatize-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ words: palabras })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error al lematizar');
+        }
+        
+        const data = await response.json();
+        mostrarResultadosBatch(data.results);
+        
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+};
+
+window.descargarAnalisis = function() {
+    if (!analisisGlobal) return;
+    
+    const blob = new Blob([JSON.stringify(analisisGlobal, null, 2)], { 
+        type: 'application/json' 
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'analisis_lematizacion.json';
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+window.descargarResultadosBatch = function() {
+    if (!window.batchResults) return;
+    
+    let csv = 'Palabra Original,Lema,Confianza,Método,Frecuencia\n';
+    
+    window.batchResults.forEach(r => {
+        csv += `${r.original},${r.lemma},${r.confidence.toFixed(4)},${r.method},${r.frequency}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'resultados_lematizacion.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+window.limpiarCorpus = function() {
+    corpusTexto = '';
+    analisisGlobal = null;
+    
+    // Mostrar área de carga nuevamente
+    document.getElementById('upload-area-lemmatizer').style.display = 'block';
+    document.getElementById('corpus-preview').style.display = 'none';
+    document.getElementById('corpus-buttons').style.display = 'none';
+    document.getElementById('processing-status').style.display = 'none';
+    document.getElementById('corpus-file-input').value = '';
+    
+    // Limpiar resultados
+    document.getElementById('resultado-lemma').style.display = 'none';
+    document.getElementById('resultado-batch').style.display = 'none';
+    document.getElementById('palabra-input').value = '';
+    document.getElementById('palabras-batch').value = '';
+    
+    document.getElementById('tab-analisis-btn').disabled = true;
+    document.getElementById('tab-lematizar-btn').disabled = true;
+    
+    window.cambiarTabLemmatizer('cargar');
+    
+    // Reiniciar modelo en el backend
+    fetch('/lemmatizer/reset', { method: 'POST' });
+};
+
+// =============================================================================
+// FUNCIONES AUXILIARES (internas)
+// =============================================================================
+
+window.inicializarLematizador = function() {  
+    if (lematizadorInicializado) {
+        console.log('Lematizador ya inicializado');
+        return;
+    }
+    
+    const uploadArea = document.getElementById('upload-area-lemmatizer');
+    const fileInput = document.getElementById('corpus-file-input');
+    
+    if (!uploadArea || !fileInput) {
+        console.log('Elementos del lematizador no encontrados');
+        return;
+    }
+    
+    console.log('Inicializando lematizador...');
+    
+    // Prevenir comportamiento por defecto del navegador
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    // Eventos para drag & drop
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    // Resaltar área al arrastrar sobre ella
+    uploadArea.addEventListener('dragenter', function(e) {
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragover', function(e) {
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        // Solo remover si realmente salimos del área
+        if (e.target === uploadArea) {
+            uploadArea.classList.remove('dragover');
+        }
+    });
+    
+    // Manejar el drop
+    uploadArea.addEventListener('drop', function(e) {
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileSelect(files[0]);
+        }
+    });
+    
+    // Click en el área (solo si no se hizo click en el botón)
+    uploadArea.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+            fileInput.click();
+        }
+    });
+    
+    // Cambio en el input de archivo
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    });
+    
+    lematizadorInicializado = true;
+    console.log('Lematizador inicializado correctamente');
+}
+
+function handleFileSelect(file) {
+    if (!file.name.endsWith('.txt')) {
+        alert('Por favor selecciona un archivo .txt');
+        return;
+    }
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        corpusTexto = e.target.result;
+        mostrarVistaPrevia(file.name, file.size, corpusTexto);
+    };
+    
+    reader.onerror = function() {
+        alert('Error al leer el archivo');
+    };
+    
+    reader.readAsText(file);
+}
+
+function mostrarVistaPrevia(filename, size, text) {
+    // Ocultar área de carga
+    document.getElementById('upload-area-lemmatizer').style.display = 'none';
+    
+    // Mostrar información del archivo
+    document.getElementById('corpus-filename').textContent = filename;
+    document.getElementById('corpus-size').textContent = formatBytes(size);
+    
+    // Mostrar primeros 500 caracteres
+    const preview = text.substring(0, 500) + (text.length > 500 ? '...' : '');
+    document.getElementById('corpus-preview-text').textContent = preview;
+    
+    // Mostrar vista previa y botones
+    document.getElementById('corpus-preview').style.display = 'block';
+    document.getElementById('corpus-buttons').style.display = 'flex';
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function mostrarAnalisis(analysis) {
+    // Estadísticas principales
+    const statsHtml = `
+        <div class="stat-card">
+            <div class="stat-value">${analysis.total_words.toLocaleString()}</div>
+            <div class="stat-label">Total Palabras</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${analysis.unique_words.toLocaleString()}</div>
+            <div class="stat-label">Palabras Únicas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${analysis.avg_word_length.toFixed(2)}</div>
+            <div class="stat-label">Long. Promedio</div>
+        </div>
+    `;
+    document.getElementById('stats-lemmatizer').innerHTML = statsHtml;
+    
+    // Top palabras
+    const topWordsHtml = analysis.top_words.map(([word, freq], idx) => `
+        <div class="word-item">
+            <div class="word-rank">${idx + 1}</div>
+            <div class="word-text">${word}</div>
+            <div class="word-freq">${freq}</div>
+        </div>
+    `).join('');
+    document.getElementById('top-words-list').innerHTML = topWordsHtml;
+    
+    // Patrones de sufijos
+    const suffixHtml = analysis.suffix_patterns.map(pattern => `
+        <div class="suffix-pattern">
+            <div class="suffix-pattern-root">Raíz: "${pattern.root}"</div>
+            <div class="suffix-badges">
+                ${pattern.patterns.map(p => `
+                    <span class="suffix-badge">-${p.suffix} (${(p.prob * 100).toFixed(1)}%)</span>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+    document.getElementById('suffix-patterns-list').innerHTML = suffixHtml;
+    
+    // Grupos de lemas
+    const lemmaGroupsHtml = analysis.lemma_groups.map(group => `
+        <div class="lemma-group">
+            <div class="lemma-group-header">
+                <div class="lemma-main">${group.lemma}</div>
+                <div class="lemma-stats">
+                    <span class="lemma-stat">${group.count} variantes</span>
+                    <span class="lemma-stat">Freq: ${group.frequency}</span>
+                </div>
+            </div>
+            <div class="lemma-variants">
+                ${group.variants.map(v => `<span class="variant-badge">${v}</span>`).join('')}
+            </div>
+        </div>
+    `).join('');
+    document.getElementById('lemma-groups-list').innerHTML = lemmaGroupsHtml;
+}
+
+function mostrarResultadoLemma(result) {
+    const confidenceClass = result.confidence >= 0.8 ? 'confidence-high' : 
+                           result.confidence >= 0.5 ? 'confidence-medium' : 'confidence-low';
+    
+    const methodLabels = {
+        'palabra_muy_corta': 'Palabra muy corta',
+        'corpus_directo': 'Encontrado en corpus',
+        'prediccion_markov': 'Predicción Markov',
+        'prediccion_similar': 'Predicción por similitud',
+        'desconocido': 'Palabra desconocida'
+    };
+    
+    const html = `
+        <div class="resultado-lemma-card">
+            <div class="resultado-header">
+                <div>
+                    <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.3rem;">Palabra Original</div>
+                    <div class="palabra-original">${result.original}</div>
+                </div>
+                <div class="success-icon">✅</div>
+            </div>
+            
+            <div class="lemma-result">
+                <div class="lemma-label">Lema Identificado</div>
+                <div class="lemma-value">${result.lemma}</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="confidence-bar">
+                    <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.3rem;">Confianza</div>
+                    <div class="confidence-progress">
+                        <div class="confidence-fill" style="width: ${result.confidence * 100}%"></div>
+                    </div>
+                    <div class="${confidenceClass}" style="text-align: center; margin-top: 0.3rem;">
+                        ${(result.confidence * 100).toFixed(0)}%
+                    </div>
+                </div>
+                
+                <div class="confidence-bar">
+                    <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.3rem;">Método</div>
+                    <div style="margin-top: 0.5rem;">
+                        <span class="method-badge">${methodLabels[result.method] || result.method}</span>
+                    </div>
+                </div>
+            </div>
+            
+            ${result.frequency > 0 ? `
+                <div style="background: rgba(52, 152, 219, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Frecuencia en corpus:</strong> ${result.frequency} veces
+                </div>
+            ` : ''}
+            
+            ${result.variants.length > 0 ? `
+                <div class="variants-section">
+                    <div class="variants-title">Variantes Morfológicas:</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                        ${result.variants.map(v => `<span class="variant-badge">${v}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    const resultDiv = document.getElementById('resultado-lemma');
+    resultDiv.innerHTML = html;
+    resultDiv.style.display = 'block';
+}
+
+function mostrarResultadosBatch(results) {
+    const getConfidenceClass = (conf) => {
+        return conf >= 0.8 ? 'confidence-high' : conf >= 0.5 ? 'confidence-medium' : 'confidence-low';
+    };
+    
+    const html = `
+        <div class="batch-results-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Palabra Original</th>
+                        <th>Lema</th>
+                        <th>Confianza</th>
+                        <th>Método</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${results.map((r, idx) => `
+                        <tr>
+                            <td><strong>${idx + 1}</strong></td>
+                            <td style="font-family: 'Courier New', monospace;">${r.original}</td>
+                            <td style="font-family: 'Courier New', monospace; color: #667eea; font-weight: 700;">${r.lemma}</td>
+                            <td class="${getConfidenceClass(r.confidence)}">${(r.confidence * 100).toFixed(0)}%</td>
+                            <td style="font-size: 0.85rem;">${r.method.replace('_', ' ')}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="buttons-section" style="margin-top: 1rem;">
+            <button class="btn-primary" type="button" onclick="descargarResultadosBatch()">
+                💾 Descargar Resultados (CSV)
+            </button>
+        </div>
+    `;
+    
+    const resultDiv = document.getElementById('resultado-batch');
+    resultDiv.innerHTML = html;
+    resultDiv.style.display = 'block';
+    
+    // Guardar resultados para descarga
+    window.batchResults = results;
+}
 });
