@@ -26,9 +26,10 @@
       <button class="nav-item" data-distribution="gibbs">Método de Gibbs</button>
       <button class="nav-item" data-distribution="normal-bivariada">Normal Bivariada</button>
       <button class="nav-item" data-distribution="markov-chain" onclick="setupMarkovChain()">Cadenas de Markov</button>
-      <br>
-      <div class="sidebar-title">Lematizadores</div>
-      <button class="nav-item" data-distribution="lematizador">Dematizador  </button>
+      <button class="nav-item" data-distribution="metropolis" onclick="setupMetropolisHastings()">Metropolis-Hastings</button>
+      <!-- <br> -->
+      <!-- <div class="sidebar-title">Lematizadores</div> -->
+      <!-- <button class="nav-item" data-distribution="lematizador">Dematizador  </button> -->
     </nav>
 
     <div class="main-content">
@@ -485,6 +486,145 @@
 
             <div id="markov-simulation-results">
               <!-- Se llena dinámicamente -->
+            </div>
+          </div>
+        </div>
+
+        <div class="distribution-content" id="metropolis">
+          <div class="inputs-section">
+            <div class="panel-title">🎲 Algoritmo de Metropolis-Hastings (MCMC)</div>
+            
+            <div class="metropolis-intro">
+              <p style="font-size: 0.95rem; color: #555; line-height: 1.6; margin-bottom: 1rem;">
+                <strong>Metropolis-Hastings</strong> es un algoritmo MCMC (Markov Chain Monte Carlo) que permite 
+                generar muestras de distribuciones de probabilidad complejas, incluso cuando no podemos muestrear 
+                directamente de ellas.
+              </p>
+              <div class="algo-explanation">
+                <div class="algo-title">🔍 ¿Cómo funciona?</div>
+                <ol style="margin-left: 1.5rem; line-height: 1.8;">
+                  <li>Comenzamos en un punto inicial x₀</li>
+                  <li>Proponemos un nuevo punto x* usando una <strong>distribución de propuesta</strong></li>
+                  <li>Calculamos la <strong>razón de aceptación</strong>: α = min(1, P(x*)/P(x_actual))</li>
+                  <li>Aceptamos x* con probabilidad α, o mantenemos x_actual</li>
+                  <li>Repetimos hasta obtener suficientes muestras</li>
+                </ol>
+              </div>
+            </div>
+            
+            <!-- PASO 1: EJEMPLOS -->
+            <div class="section">
+              <div class="section-header">📚 Paso 1: Seleccionar Distribución Objetivo (Target)</div>
+              <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+                Elige una distribución para muestrear o configura tu propia distribución
+              </p>
+              <select id="metropolis-examples-select" class="markov-select">
+                <option value="">-- Selecciona un ejemplo --</option>
+              </select>
+              <button class="btn-secondary" style="margin-top: 0.5rem; width: 100%;" onclick="cargarEjemploMetropolis()">
+                📥 Cargar Ejemplo Seleccionado
+              </button>
+              <div id="metropolis-example-explanation" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 4px solid #667eea;">
+                <!-- Se llena dinámicamente -->
+              </div>
+            </div>
+
+            <!-- PASO 2: PARÁMETROS DE LA DISTRIBUCIÓN -->
+            <div class="section">
+              <div class="section-header">⚙️ Paso 2: Configurar Parámetros de la Distribución</div>
+              <div id="metropolis-params-container">
+                <p style="color: #999; font-style: italic;">Primero selecciona un ejemplo...</p>
+              </div>
+            </div>
+
+            <!-- PASO 3: CONFIGURACIÓN DEL ALGORITMO -->
+            <div class="section">
+              <div class="section-header">🎛️ Paso 3: Configurar Algoritmo MCMC</div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="input-group">
+                  <label>Valor Inicial (x₀):</label>
+                  <input type="number" id="metropolis-x-initial" value="0" step="0.1">
+                  <small style="color: #666; margin-top: 0.3rem; display: block;">
+                    💡 Punto de partida de la cadena
+                  </small>
+                </div>
+                
+                <div class="input-group">
+                  <label>Desviación de Propuesta (σ_propuesta):</label>
+                  <input type="number" id="metropolis-proposal-sigma" value="1" step="0.1" min="0.01">
+                  <small style="color: #666; margin-top: 0.3rem; display: block;">
+                    💡 Controla el "tamaño del salto"
+                  </small>
+                </div>
+              </div>
+
+              <div class="metropolis-tuning-guide" style="background: #fff9e6; padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 4px solid #f39c12;">
+                <strong>📖 Guía de Ajuste:</strong><br>
+                • σ_propuesta <strong>pequeña</strong> (0.1-0.5): Saltos pequeños, alta aceptación, exploración lenta<br>
+                • σ_propuesta <strong>media</strong> (0.5-2): Balance ideal, tasa de aceptación ~40-60%<br>
+                • σ_propuesta <strong>grande</strong> (>2): Saltos grandes, baja aceptación, puede quedarse atascado
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                <div class="input-group">
+                  <label>Número de Muestras:</label>
+                  <input type="number" id="metropolis-n-samples" value="5000" min="100" max="100000">
+                  <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button class="markov-quick-btn" onclick="document.getElementById('metropolis-n-samples').value = 1000">1K</button>
+                    <button class="markov-quick-btn" onclick="document.getElementById('metropolis-n-samples').value = 5000">5K</button>
+                    <button class="markov-quick-btn" onclick="document.getElementById('metropolis-n-samples').value = 10000">10K</button>
+                    <button class="markov-quick-btn" onclick="document.getElementById('metropolis-n-samples').value = 50000">50K</button>
+                  </div>
+                </div>
+                
+                <div class="input-group">
+                  <label>Burn-in (Descartar):</label>
+                  <input type="number" id="metropolis-burn-in" value="1000" min="0">
+                  <small style="color: #666; margin-top: 0.3rem; display: block;">
+                    💡 Muestras iniciales que se descartan
+                  </small>
+                </div>
+              </div>
+
+              <div class="input-group" style="margin-top: 1rem;">
+                <label>Rango de Visualización:</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div>
+                    <label style="font-size: 0.9rem; color: #666;">x mín:</label>
+                    <input type="number" id="metropolis-x-min" value="-5" step="0.5">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.9rem; color: #666;">x máx:</label>
+                    <input type="number" id="metropolis-x-max" value="5" step="0.5">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="metropolis-status" style="margin-top: 1rem;"></div>
+          </div>
+
+          <!-- BOTONES DE ACCIÓN -->
+          <div class="buttons-section">
+            <button class="btn-primary" onclick="ejecutarMetropolisHastings()">
+              🚀 Ejecutar Simulación MCMC
+            </button>
+            <button class="btn-secondary" onclick="limpiarMetropolis()">
+              🔄 Reiniciar
+            </button>
+          </div>
+
+          <!-- PANEL DE RESULTADOS -->
+          <div id="metropolis-results-panel" style="display: none; margin-top: 2rem;">
+            <div class="results-divider"></div>
+            
+            <div class="panel-title" style="margin-top: 2rem;">
+              📊 Resultados de Metropolis-Hastings
+            </div>
+
+            <div id="metropolis-simulation-results">
+              <!-- Se llena dinámicamente con JavaScript -->
             </div>
           </div>
         </div>

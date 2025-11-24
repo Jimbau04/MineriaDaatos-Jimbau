@@ -1752,6 +1752,307 @@ async def markov_status():
     }
 
 
+
+# =============================================================================
+# METROPOLIS-HASTINGS MCMC
+# =============================================================================
+
+
+class MetropolisHastingsModel:
+    def __init__(self):
+        self.is_configured = False
+        self.target_function = None
+        self.target_name = ""
+        
+    def target_normal(self, x, mu=0, sigma=1):
+        """Distribución normal"""
+        return (1 / (sigma * math.sqrt(2 * math.pi))) * math.exp(-0.5 * ((x - mu) / sigma) ** 2)
+    
+    def target_exponential(self, x, lam=1):
+        """Distribución exponencial"""
+        if x < 0:
+            return 0
+        return lam * math.exp(-lam * x)
+    
+    def target_gamma(self, x, alpha=2, beta=1):
+        """Distribución gamma"""
+        if x <= 0:
+            return 0
+        return (beta ** alpha / math.gamma(alpha)) * (x ** (alpha - 1)) * math.exp(-beta * x)
+    
+    def target_beta(self, x, alpha=2, beta=5):
+        """Distribución beta"""
+        if x <= 0 or x >= 1:
+            return 0
+        from scipy.special import beta as beta_func
+        return (x ** (alpha - 1)) * ((1 - x) ** (beta - 1)) / beta_func(alpha, beta)
+    
+    def target_mixture_normal(self, x):
+        """Mezcla de dos normales"""
+        return 0.3 * self.target_normal(x, -2, 0.5) + 0.7 * self.target_normal(x, 3, 1)
+    
+    def target_cauchy(self, x, x0=0, gamma=1):
+        """Distribución de Cauchy"""
+        return 1 / (math.pi * gamma * (1 + ((x - x0) / gamma) ** 2))
+    
+    def target_bimodal(self, x):
+        """Distribución bimodal"""
+        return 0.5 * self.target_normal(x, -3, 1) + 0.5 * self.target_normal(x, 3, 1)
+    
+    def proposal_normal(self, x_current, proposal_sigma):
+        """Propuesta: Normal centrada en x_current"""
+        return random.gauss(x_current, proposal_sigma)
+    
+    def run_metropolis_hastings(self, target_type, params, n_samples, burn_in, 
+                                x_initial, proposal_sigma, x_min, x_max):
+        """
+        Ejecuta el algoritmo de Metropolis-Hastings
+        """
+        # Seleccionar función objetivo
+        target_functions = {
+            'normal': lambda x: self.target_normal(x, params.get('mu', 0), params.get('sigma', 1)),
+            'exponential': lambda x: self.target_exponential(x, params.get('lambda', 1)),
+            'gamma': lambda x: self.target_gamma(x, params.get('alpha', 2), params.get('beta', 1)),
+            'beta': lambda x: self.target_beta(x, params.get('alpha', 2), params.get('beta', 5)),
+            'mixture': lambda x: self.target_mixture_normal(x),
+            'cauchy': lambda x: self.target_cauchy(x, params.get('x0', 0), params.get('gamma', 1)),
+            'bimodal': lambda x: self.target_bimodal(x)
+        }
+        
+        target_func = target_functions.get(target_type)
+        if not target_func:
+            raise ValueError(f"Tipo de distribución '{target_type}' no soportado")
+        
+        # Inicialización
+        samples = []
+        current_x = x_initial
+        accepted = 0
+        rejected = 0
+        acceptance_history = []
+        
+        total_iterations = n_samples + burn_in
+        
+        for i in range(total_iterations):
+            # Proponer nuevo valor
+            proposed_x = self.proposal_normal(current_x, proposal_sigma)
+            
+            # Calcular razón de aceptación
+            # Para propuesta simétrica (Normal), solo necesitamos la razón de densidades
+            current_density = target_func(current_x)
+            proposed_density = target_func(proposed_x)
+            
+            if current_density == 0:
+                acceptance_ratio = 1  # Aceptar siempre si estamos en densidad 0
+            else:
+                acceptance_ratio = min(1, proposed_density / current_density)
+            
+            # Decidir si aceptar
+            u = random.random()
+            if u < acceptance_ratio:
+                current_x = proposed_x
+                accepted += 1
+            else:
+                rejected += 1
+            
+            # Guardar muestra (después del burn-in)
+            if i >= burn_in:
+                # Aplicar límites si es necesario
+                if x_min is not None and x_max is not None:
+                    if x_min <= current_x <= x_max:
+                        samples.append(current_x)
+                    else:
+                        # Si sale de los límites, usar el valor límite más cercano
+                        samples.append(max(x_min, min(x_max, current_x)))
+                else:
+                    samples.append(current_x)
+            
+            # Guardar tasa de aceptación cada 100 iteraciones
+            if (i + 1) % 100 == 0:
+                acceptance_history.append({
+                    'iteration': i + 1,
+                    'rate': accepted / (accepted + rejected)
+                })
+        
+        # Calcular estadísticas
+        acceptance_rate = accepted / total_iterations
+        
+        stats = {
+            'mean': float(np.mean(samples)),
+            'median': float(np.median(samples)),
+            'std': float(np.std(samples)),
+            'min': float(np.min(samples)),
+            'max': float(np.max(samples)),
+            'acceptance_rate': acceptance_rate,
+            'total_accepted': accepted,
+            'total_rejected': rejected
+        }
+        
+        return samples, acceptance_history, stats
+
+# Instancia global
+metropolis_model = MetropolisHastingsModel()
+
+# Modelos Pydantic
+class MetropolisConfigInput(BaseModel):
+    target_type: str
+    params: Dict[str, float]
+    n_samples: int
+    burn_in: int
+    x_initial: float
+    proposal_sigma: float
+    x_min: Optional[float] = None
+    x_max: Optional[float] = None
+
+# --- ENDPOINTS METROPOLIS-HASTINGS ---
+
+@simulador.get("/metropolis/examples")
+async def get_metropolis_examples():
+    """Retorna ejemplos predefinidos de distribuciones"""
+    examples = [
+        {
+            "name": "📊 Normal Estándar",
+            "description": "Distribución normal con media 0 y desviación estándar 1",
+            "target_type": "normal",
+            "params": {"mu": 0, "sigma": 1},
+            "x_initial": 0,
+            "proposal_sigma": 1,
+            "x_min": -5,
+            "x_max": 5,
+            "explanation": "La distribución más común en estadística. Metropolis-Hastings debería converger rápidamente a esta forma de campana."
+        },
+        {
+            "name": "📈 Exponencial",
+            "description": "Distribución exponencial (tiempos de espera)",
+            "target_type": "exponential",
+            "params": {"lambda": 1},
+            "x_initial": 1,
+            "proposal_sigma": 0.5,
+            "x_min": 0,
+            "x_max": 10,
+            "explanation": "Modela tiempos entre eventos. Nota cómo está sesgada hacia valores pequeños."
+        },
+        {
+            "name": "🎲 Gamma",
+            "description": "Distribución gamma (α=2, β=1)",
+            "target_type": "gamma",
+            "params": {"alpha": 2, "beta": 1},
+            "x_initial": 2,
+            "proposal_sigma": 0.8,
+            "x_min": 0,
+            "x_max": 10,
+            "explanation": "Generalización de la exponencial. Útil para modelar tiempos de espera con múltiples etapas."
+        },
+        {
+            "name": "🎯 Beta",
+            "description": "Distribución beta (α=2, β=5) - acotada [0,1]",
+            "target_type": "beta",
+            "params": {"alpha": 2, "beta": 5},
+            "x_initial": 0.3,
+            "proposal_sigma": 0.1,
+            "x_min": 0,
+            "x_max": 1,
+            "explanation": "Perfecta para probabilidades y proporciones. Observa cómo todas las muestras están entre 0 y 1."
+        },
+        {
+            "name": "🎭 Mezcla de Normales",
+            "description": "30% N(-2, 0.5) + 70% N(3, 1)",
+            "target_type": "mixture",
+            "params": {},
+            "x_initial": 0,
+            "proposal_sigma": 1.5,
+            "x_min": -6,
+            "x_max": 8,
+            "explanation": "Distribución multimodal. ¡Desafío para MCMC! Observa cómo el algoritmo salta entre los dos picos."
+        },
+        {
+            "name": "🔔 Cauchy (Colas Pesadas)",
+            "description": "Distribución de Cauchy - sin media ni varianza",
+            "target_type": "cauchy",
+            "params": {"x0": 0, "gamma": 1},
+            "x_initial": 0,
+            "proposal_sigma": 2,
+            "x_min": -10,
+            "x_max": 10,
+            "explanation": "Distribución con colas muy pesadas. ¡No tiene media ni varianza definida! Genera valores extremos ocasionalmente."
+        },
+        {
+            "name": "🗻 Distribución Bimodal",
+            "description": "Dos picos simétricos en x=-3 y x=3",
+            "target_type": "bimodal",
+            "params": {},
+            "x_initial": 0,
+            "proposal_sigma": 2,
+            "x_min": -8,
+            "x_max": 8,
+            "explanation": "Dos picos iguales separados. El algoritmo debe explorar ambos modos adecuadamente."
+        }
+    ]
+    
+    return {"examples": examples}
+
+@simulador.post("/metropolis/simulate")
+async def simulate_metropolis(data: MetropolisConfigInput):
+    """Ejecuta simulación de Metropolis-Hastings"""
+    try:
+        # Validaciones
+        if data.n_samples < 100 or data.n_samples > 100000:
+            raise HTTPException(status_code=400, detail="El número de muestras debe estar entre 100 y 100,000")
+        
+        if data.burn_in < 0 or data.burn_in > data.n_samples:
+            raise HTTPException(status_code=400, detail="El burn-in debe ser positivo y menor que el número de muestras")
+        
+        if data.proposal_sigma <= 0:
+            raise HTTPException(status_code=400, detail="La desviación de la propuesta debe ser positiva")
+        
+        # Ejecutar simulación
+        start_time = time.time()
+        
+        samples, acceptance_history, stats = metropolis_model.run_metropolis_hastings(
+            target_type=data.target_type,
+            params=data.params,
+            n_samples=data.n_samples,
+            burn_in=data.burn_in,
+            x_initial=data.x_initial,
+            proposal_sigma=data.proposal_sigma,
+            x_min=data.x_min,
+            x_max=data.x_max
+        )
+        
+        execution_time = time.time() - start_time
+        
+        # Preparar datos para visualización
+        return {
+            "success": True,
+            "samples": samples,
+            "acceptance_history": acceptance_history,
+            "statistics": {
+                **stats,
+                "execution_time": execution_time,
+                "n_samples": len(samples),
+                "burn_in": data.burn_in
+            },
+            "config": {
+                "target_type": data.target_type,
+                "params": data.params,
+                "x_initial": data.x_initial,
+                "proposal_sigma": data.proposal_sigma
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@simulador.post("/metropolis/reset")
+async def reset_metropolis():
+    """Reinicia el modelo"""
+    global metropolis_model
+    metropolis_model = MetropolisHastingsModel()
+    return {
+        "success": True,
+        "message": "Modelo de Metropolis-Hastings reiniciado"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(simulador)

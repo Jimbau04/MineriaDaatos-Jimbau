@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Estado global para la última simulación
     let datosSimulacionActual = null;
     let nombreSimulacionActual = '';
+    
 
     const TITULOS = {
         'bernoulli': 'Distribución de Bernoulli',
@@ -2250,6 +2251,526 @@ window.limpiarMarkov = async function() {
 
 // =============================================================================
 // FIN CADENAS DE MARKOV
+// =============================================================================
+
+
+
+// =============================================================================
+// METROPOLIS-HASTINGS MCMC
+// =============================================================================
+
+
+let metropolisExamples = [];
+let currentMetropolisConfig = null;
+
+window.setupMetropolisHastings = function() {
+    cargarEjemplosMetropolis();
+}
+
+window.cargarEjemplosMetropolis = async function() {
+    try {
+        const response = await fetch('/metropolis/examples');
+        if (!response.ok) throw new Error('Error al cargar ejemplos');
+        
+        const data = await response.json();
+        metropolisExamples = data.examples;
+        
+        const select = document.getElementById('metropolis-examples-select');
+        select.innerHTML = '<option value="">-- Selecciona un ejemplo --</option>';
+        
+        metropolisExamples.forEach((ex, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            option.textContent = ex.name;
+            select.appendChild(option);
+        });
+        
+        // Listener para mostrar explicación
+        select.addEventListener('change', function() {
+            const explanationDiv = document.getElementById('metropolis-example-explanation');
+            const paramsContainer = document.getElementById('metropolis-params-container');
+            const idx = this.value;
+            
+            if (idx === '') {
+                explanationDiv.style.display = 'none';
+                paramsContainer.innerHTML = '<p style="color: #999; font-style: italic;">Primero selecciona un ejemplo...</p>';
+            } else {
+                const example = metropolisExamples[idx];
+                explanationDiv.style.display = 'block';
+                explanationDiv.innerHTML = `
+                    <div style="margin-bottom: 0.5rem;">
+                        <strong style="color: #667eea; font-size: 1.1rem;">${example.name}</strong>
+                    </div>
+                    <div style="color: #555; font-size: 0.95rem; line-height: 1.6;">
+                        📝 ${example.description}<br><br>
+                        💡 <strong>Explicación:</strong> ${example.explanation}
+                    </div>
+                `;
+                
+                // Mostrar parámetros editables
+                mostrarParametrosMetropolis(example);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error cargando ejemplos:', error);
+    }
+};
+
+window.mostrarParametrosMetropolis = function(example) {
+    const container = document.getElementById('metropolis-params-container');
+    const params = example.params;
+    
+    let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
+    
+    if (Object.keys(params).length === 0) {
+        html += '<p style="color: #27ae60; font-weight: 600;">✓ Esta distribución no requiere parámetros adicionales</p>';
+    } else {
+        for (const [key, value] of Object.entries(params)) {
+            const paramName = key === 'mu' ? 'Media (μ)' :
+                            key === 'sigma' ? 'Desv. Estándar (σ)' :
+                            key === 'lambda' ? 'Tasa (λ)' :
+                            key === 'alpha' ? 'Forma (α)' :
+                            key === 'beta' ? 'Escala (β)' :
+                            key === 'x0' ? 'Ubicación (x₀)' :
+                            key === 'gamma' ? 'Escala (γ)' : key;
+            
+            html += `
+                <div class="input-group">
+                    <label>${paramName}:</label>
+                    <input type="number" id="metropolis-param-${key}" value="${value}" step="0.1">
+                </div>
+            `;
+        }
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+};
+
+window.cargarEjemploMetropolis = function() {
+    const select = document.getElementById('metropolis-examples-select');
+    const idx = select.value;
+    
+    if (idx === '') {
+        alert('Selecciona un ejemplo primero');
+        return;
+    }
+    
+    const example = metropolisExamples[idx];
+    
+    // Cargar configuración
+    document.getElementById('metropolis-x-initial').value = example.x_initial;
+    document.getElementById('metropolis-proposal-sigma').value = example.proposal_sigma;
+    document.getElementById('metropolis-x-min').value = example.x_min;
+    document.getElementById('metropolis-x-max').value = example.x_max;
+    
+    // Guardar configuración actual
+    currentMetropolisConfig = {
+        target_type: example.target_type,
+        params: {...example.params}
+    };
+    
+    // Mensaje de éxito
+    const statusDiv = document.getElementById('metropolis-status');
+    statusDiv.innerHTML = `
+        <div class="status success">
+            ✅ <strong>${example.name}</strong> cargado exitosamente.<br>
+            <small style="opacity: 0.9;">Ajusta los parámetros si lo deseas o ejecuta la simulación directamente.</small>
+        </div>
+    `;
+    
+    setTimeout(() => {
+        statusDiv.innerHTML = '';
+    }, 5000);
+};
+
+window.ejecutarMetropolisHastings = async function() {
+    if (!currentMetropolisConfig) {
+        const statusDiv = document.getElementById('metropolis-status');
+        statusDiv.innerHTML = '<div class="status error">❌ Primero carga un ejemplo</div>';
+        return;
+    }
+    
+    const statusDiv = document.getElementById('metropolis-status');
+    statusDiv.innerHTML = '<div class="status info">🔄 Ejecutando algoritmo MCMC...</div>';
+    
+    try {
+        // Recopilar parámetros actualizados
+        const params = {};
+        for (const key of Object.keys(currentMetropolisConfig.params)) {
+            const input = document.getElementById(`metropolis-param-${key}`);
+            if (input) {
+                params[key] = parseFloat(input.value);
+            }
+        }
+        
+        const config = {
+            target_type: currentMetropolisConfig.target_type,
+            params: params,
+            n_samples: parseInt(document.getElementById('metropolis-n-samples').value),
+            burn_in: parseInt(document.getElementById('metropolis-burn-in').value),
+            x_initial: parseFloat(document.getElementById('metropolis-x-initial').value),
+            proposal_sigma: parseFloat(document.getElementById('metropolis-proposal-sigma').value),
+            x_min: parseFloat(document.getElementById('metropolis-x-min').value),
+            x_max: parseFloat(document.getElementById('metropolis-x-max').value)
+        };
+        
+        // Validaciones
+        if (config.proposal_sigma <= 0) {
+            throw new Error('La desviación de propuesta debe ser positiva');
+        }
+        
+        if (config.n_samples < 100) {
+            throw new Error('El número de muestras debe ser al menos 100');
+        }
+        
+        if (config.burn_in >= config.n_samples) {
+            throw new Error('El burn-in debe ser menor que el número de muestras');
+        }
+        
+        const response = await fetch('/metropolis/simulate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error en la simulación');
+        }
+        
+        const result = await response.json();
+        
+        statusDiv.innerHTML = `<div class="status success">✅ Simulación completada en ${result.statistics.execution_time.toFixed(3)}s</div>`;
+        
+        // Mostrar resultados
+        mostrarResultadosMetropolis(result, config);
+        
+        // Scroll a resultados
+        setTimeout(() => {
+            document.getElementById('metropolis-results-panel').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }, 500);
+        
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+    }
+};
+
+window.mostrarResultadosMetropolis = function(data, config) {
+    const stats = data.statistics;
+    const samples = data.samples;
+    const acceptanceHistory = data.acceptance_history;
+    
+    // Mostrar panel
+    document.getElementById('metropolis-results-panel').style.display = 'block';
+    
+    // Determinar calidad de aceptación
+    let acceptanceClass, acceptanceMsg;
+    if (stats.acceptance_rate >= 0.4 && stats.acceptance_rate <= 0.6) {
+        acceptanceClass = 'excellent';
+        acceptanceMsg = '🌟 Excelente - Tasa óptima';
+    } else if (stats.acceptance_rate >= 0.2 && stats.acceptance_rate <= 0.75) {
+        acceptanceClass = 'good';
+        acceptanceMsg = '✅ Buena - Aceptable';
+    } else {
+        acceptanceClass = 'poor';
+        acceptanceMsg = stats.acceptance_rate < 0.2 ? '⚠️ Muy baja - Aumenta σ_propuesta' : '⚠️ Muy alta - Reduce σ_propuesta';
+    }
+    
+    let html = `
+        <div class="summary-card">
+            <h3 style="margin-bottom: 1rem; color: #333;">🎯 Resumen de la Simulación</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-label">Muestras Generadas</div>
+                    <div class="summary-value">${stats.n_samples.toLocaleString()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Burn-in Descartado</div>
+                    <div class="summary-value">${stats.burn_in.toLocaleString()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Muestras Aceptadas</div>
+                    <div class="summary-value" style="color: #27ae60;">${stats.total_accepted.toLocaleString()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Muestras Rechazadas</div>
+                    <div class="summary-value" style="color: #e74c3c;">${stats.total_rejected.toLocaleString()}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="acceptance-indicator ${acceptanceClass}">
+            📊 Tasa de Aceptación: ${(stats.acceptance_rate * 100).toFixed(2)}%
+            <br>
+            <span style="font-size: 0.9rem;">${acceptanceMsg}</span>
+        </div>
+
+        <div class="explanation-box">
+            <div class="explanation-title">📖 Interpretando la Tasa de Aceptación</div>
+            <p style="line-height: 1.6; color: #555;">
+                La <strong>tasa de aceptación</strong> indica qué proporción de propuestas fueron aceptadas:<br><br>
+                • <strong>40-60%</strong>: Ideal - El algoritmo explora eficientemente<br>
+                • <strong>20-40%</strong> o <strong>60-80%</strong>: Aceptable - Funciona pero puede mejorarse<br>
+                • <strong>&lt;20%</strong>: Muy baja - Aumenta σ_propuesta (saltos más grandes)<br>
+                • <strong>&gt;80%</strong>: Muy alta - Reduce σ_propuesta (saltos más pequeños)
+            </p>
+        </div>
+
+        <div class="diagnostic-card">
+            <div class="diagnostic-title">📈 Estadísticas de las Muestras</div>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-label">Media</div>
+                    <div class="summary-value">${stats.mean.toFixed(4)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Mediana</div>
+                    <div class="summary-value">${stats.median.toFixed(4)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Desv. Estándar</div>
+                    <div class="summary-value">${stats.std.toFixed(4)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Rango</div>
+                    <div class="summary-value">[${stats.min.toFixed(2)}, ${stats.max.toFixed(2)}]</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" style="margin-top: 2rem;">
+            <div class="section-header">📊 Histograma de Muestras</div>
+            <div id="metropolis-histogram-chart" style="height: 400px; margin-top: 1rem;"></div>
+        </div>
+
+        <div class="section" style="margin-top: 2rem;">
+            <div class="section-header">🔗 Trace Plot (Cadena de Markov)</div>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+                Visualiza cómo la cadena explora el espacio. Una buena cadena debe "mezclar" bien sin patrones obvios.
+            </p>
+            <div id="metropolis-trace-chart" style="height: 350px;"></div>
+        </div>
+
+        <div class="section" style="margin-top: 2rem;">
+            <div class="section-header">📈 Evolución de la Tasa de Aceptación</div>
+            <div id="metropolis-acceptance-chart" style="height: 300px;"></div>
+        </div>
+
+        <div class="diagnostic-card" style="margin-top: 2rem;">
+            <div class="diagnostic-title">🔍 Diagnósticos de Convergencia</div>
+            <div id="metropolis-diagnostics">
+                ${generarDiagnosticosMetropolis(samples, stats, config)}
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('metropolis-simulation-results').innerHTML = html;
+    
+    // Generar gráficos
+    generarGraficosMetropolis(samples, acceptanceHistory, config);
+};
+
+window.generarDiagnosticosMetropolis = function(samples, stats, config) {
+    let diagnostics = [];
+    
+    // 1. Diagnóstico de tasa de aceptación
+    if (stats.acceptance_rate < 0.2) {
+        diagnostics.push({
+            icon: '⚠️',
+            type: 'warning',
+            title: 'Tasa de aceptación muy baja',
+            message: `Con ${(stats.acceptance_rate * 100).toFixed(1)}%, la cadena rechaza demasiadas propuestas. Intenta <strong>aumentar σ_propuesta a ${(config.proposal_sigma * 2).toFixed(2)}</strong> para saltos más grandes.`
+        });
+    } else if (stats.acceptance_rate > 0.8) {
+        diagnostics.push({
+            icon: '⚠️',
+            type: 'warning',
+            title: 'Tasa de aceptación muy alta',
+            message: `Con ${(stats.acceptance_rate * 100).toFixed(1)}%, la cadena acepta casi todo. Intenta <strong>reducir σ_propuesta a ${(config.proposal_sigma * 0.5).toFixed(2)}</strong> para mejor exploración.`
+        });
+    } else {
+        diagnostics.push({
+            icon: '✅',
+            type: 'success',
+            title: 'Tasa de aceptación óptima',
+            message: `La tasa de ${(stats.acceptance_rate * 100).toFixed(1)}% está en el rango ideal (40-60%). La cadena explora eficientemente.`
+        });
+    }
+    
+    // 2. Diagnóstico de burn-in
+    const burnInRatio = stats.burn_in / (stats.n_samples + stats.burn_in);
+    if (burnInRatio < 0.1) {
+        diagnostics.push({
+            icon: '💡',
+            type: 'info',
+            title: 'Burn-in relativamente bajo',
+            message: `Solo ${(burnInRatio * 100).toFixed(1)}% de las iteraciones fueron descartadas. Si la cadena no ha convergido, considera aumentar el burn-in.`
+        });
+    }
+    
+    // 3. Diagnóstico de tamaño de muestra
+    if (stats.n_samples < 1000) {
+        diagnostics.push({
+            icon: '💡',
+            type: 'info',
+            title: 'Muestra pequeña',
+            message: `Con ${stats.n_samples} muestras, las estimaciones pueden no ser muy precisas. Considera aumentar a 5,000+ para mayor confiabilidad.`
+        });
+    } else if (stats.n_samples >= 10000) {
+        diagnostics.push({
+            icon: '✅',
+            type: 'success',
+            title: 'Muestra grande',
+            message: `Con ${stats.n_samples.toLocaleString()} muestras, las estimaciones deberían ser muy precisas.`
+        });
+    }
+    
+    // Generar HTML
+    let html = '';
+    diagnostics.forEach(diag => {
+        const bgColor = diag.type === 'success' ? '#d5f4e6' : diag.type === 'warning' ? '#fff3cd' : '#e3f2fd';
+        const borderColor = diag.type === 'success' ? '#27ae60' : diag.type === 'warning' ? '#f39c12' : '#3498db';
+        
+        html += `
+            <div style="background: ${bgColor}; border-left: 4px solid ${borderColor}; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <div style="font-weight: 700; margin-bottom: 0.5rem; color: #333;">
+                    ${diag.icon} ${diag.title}
+                </div>
+                <div style="font-size: 0.95rem; line-height: 1.6; color: #555;">
+                    ${diag.message}
+                </div>
+            </div>
+        `;
+    });
+    
+    return html;
+};
+
+window.generarGraficosMetropolis = function(samples, acceptanceHistory, config) {
+    // 1. Histograma
+    const histTrace = {
+        x: samples,
+        type: 'histogram',
+        nbinsx: 50,
+        name: 'Muestras MCMC',
+        marker: {
+            color: '#667eea',
+            opacity: 0.7,
+            line: {
+                color: '#764ba2',
+                width: 1
+            }
+        }
+    };
+    
+    Plotly.newPlot('metropolis-histogram-chart', [histTrace], {
+        title: '',
+        xaxis: { title: 'Valor' },
+        yaxis: { title: 'Frecuencia' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        bargap: 0.05
+    }, { responsive: true });
+    
+    // 2. Trace plot
+    const traceTrace = {
+        y: samples.slice(0, Math.min(1000, samples.length)), // Primeros 1000 para visualización
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Cadena',
+        line: {
+            color: '#667eea',
+            width: 1
+        }
+    };
+    
+    Plotly.newPlot('metropolis-trace-chart', [traceTrace], {
+        title: '',
+        xaxis: { title: 'Iteración' },
+        yaxis: { title: 'Valor de x' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
+    }, { responsive: true });
+    
+    // 3. Evolución de tasa de aceptación
+    const acceptanceTrace = {
+        x: acceptanceHistory.map(h => h.iteration),
+        y: acceptanceHistory.map(h => h.rate * 100),
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Tasa de Aceptación (%)',
+        line: {
+            color: '#764ba2',
+            width: 2
+        }
+    };
+    
+    // Líneas de referencia
+    const optimalLower = {
+        x: [0, acceptanceHistory[acceptanceHistory.length - 1].iteration],
+        y: [40, 40],
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Óptimo (40%)',
+        line: { color: '#27ae60', width: 1, dash: 'dash' }
+    };
+    
+    const optimalUpper = {
+        x: [0, acceptanceHistory[acceptanceHistory.length - 1].iteration],
+        y: [60, 60],
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Óptimo (60%)',
+        line: { color: '#27ae60', width: 1, dash: 'dash' }
+    };
+    
+    Plotly.newPlot('metropolis-acceptance-chart', [acceptanceTrace, optimalLower, optimalUpper], {
+        title: '',
+        xaxis: { title: 'Iteración' },
+        yaxis: { title: 'Tasa de Aceptación (%)' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
+    }, { responsive: true });
+};
+
+window.limpiarMetropolis = async function() {
+    if (!confirm('¿Estás seguro de que deseas reiniciar? Se perderán todos los datos.')) {
+        return;
+    }
+    
+    // Reiniciar en el backend
+    await fetch('/metropolis/reset', { method: 'POST' });
+    
+    // Reiniciar estado local
+    currentMetropolisConfig = null;
+    
+    // Limpiar UI
+    document.getElementById('metropolis-examples-select').value = '';
+    document.getElementById('metropolis-example-explanation').style.display = 'none';
+    document.getElementById('metropolis-params-container').innerHTML = '<p style="color: #999; font-style: italic;">Primero selecciona un ejemplo...</p>';
+    
+    document.getElementById('metropolis-x-initial').value = 0;
+    document.getElementById('metropolis-proposal-sigma').value = 1;
+    document.getElementById('metropolis-n-samples').value = 5000;
+    document.getElementById('metropolis-burn-in').value = 1000;
+    document.getElementById('metropolis-x-min').value = -5;
+    document.getElementById('metropolis-x-max').value = 5;
+    
+    document.getElementById('metropolis-status').innerHTML = '';
+    document.getElementById('metropolis-results-panel').style.display = 'none';
+    document.getElementById('metropolis-simulation-results').innerHTML = '';
+    
+    // Scroll al inicio
+    document.getElementById('metropolis').scrollIntoView({ behavior: 'smooth' });
+};
+
+// =============================================================================
+// FIN METROPOLIS-HASTINGS
 // =============================================================================
 
 });
